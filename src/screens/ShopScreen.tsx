@@ -20,6 +20,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Panel } from '../components/Panel';
 import { Icon } from '../components/Icon';
 import { ALL_CARDS } from '../engine/cardDb';
+import { CardView } from '../components/CardView';
 import {
   DISENCHANT_DUST,
   FORGE_COST,
@@ -247,7 +248,9 @@ export function ShopScreen() {
             const qty = owned[c.id] ?? 0;
             const cost = forgeCost(c.id);
             const spare = maxDisenchantable(c.id, owned, deck);
+            const gain = DISENCHANT_DUST[c.rarity];
             const rc = rarityColors[c.rarity as Rarity];
+            const canAfford = mode === 'forge' ? dust >= cost : spare > 0;
             return (
               <Pressable
                 key={c.id}
@@ -256,27 +259,36 @@ export function ShopScreen() {
                   styles.forgeRow,
                   idx > 0 && styles.forgeRowBorder,
                   pressed && { backgroundColor: 'rgba(212,168,75,0.06)' },
+                  !canAfford && { opacity: 0.55 },
                 ]}
               >
-                <View style={[styles.rarityDot, { backgroundColor: rc }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.forgeName} numberOfLines={1}>
+                <CardView card={c} width={64} compact />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.forgeName} numberOfLines={2}>
                     {c.name}
                   </Text>
                   <Text style={styles.forgeMeta}>
                     <Text style={{ color: rc }}>{c.rarity}</Text>
-                    {` · ${c.faction} · owned ×${qty}`}
+                    {` · ${c.type} · ${c.faction}`}
+                  </Text>
+                  <Text style={styles.forgeOwned}>
+                    Owned ×{qty}
                     {mode === 'dust' ? ` · spare ×${spare}` : ''}
                   </Text>
                 </View>
-                <View style={[styles.costBadge, mode === 'dust' && styles.costBadgeGain]}>
-                  <Icon
-                    name="dust"
-                    size={11}
-                    color={mode === 'forge' ? palette.goldBright : '#9EE8C4'}
-                  />
-                  <Text style={[styles.forgeCost, mode === 'dust' && { color: '#9EE8C4' }]}>
-                    {mode === 'forge' ? `−${cost}` : `+${DISENCHANT_DUST[c.rarity]}`}
+                <View style={styles.forgeActionCol}>
+                  <View style={[styles.costBadge, mode === 'dust' && styles.costBadgeGain]}>
+                    <Icon
+                      name="dust"
+                      size={12}
+                      color={mode === 'forge' ? palette.goldBright : '#9EE8C4'}
+                    />
+                    <Text style={[styles.forgeCost, mode === 'dust' && { color: '#9EE8C4' }]}>
+                      {mode === 'forge' ? cost : `+${gain}`}
+                    </Text>
+                  </View>
+                  <Text style={styles.forgeActionHint}>
+                    {mode === 'forge' ? (canAfford ? 'Tap to forge' : 'Need dust') : 'Tap to dust'}
                   </Text>
                 </View>
               </Pressable>
@@ -285,7 +297,7 @@ export function ShopScreen() {
           {!craftable.length && (
             <Text style={styles.emptyForge}>
               {mode === 'forge'
-                ? 'No affordable forge targets — earn dust by disenchanting extras.'
+                ? 'No forge targets — earn dust by disenchanting extras.'
                 : 'No spare copies to disenchant (deck copies stay protected).'}
             </Text>
           )}
@@ -391,35 +403,37 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   search: { flex: 1, color: palette.text, fontFamily: fonts.body, fontSize: 14, paddingVertical: 10 },
-  forgeList: { paddingHorizontal: 4 },
+  forgeList: { paddingHorizontal: 6, paddingVertical: 4 },
   forgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 10,
-    gap: 10,
+    paddingHorizontal: 8,
+    gap: 12,
     borderRadius: radii.sm,
   },
-  forgeRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.07)' },
-  rarityDot: { width: 7, height: 7, borderRadius: 2, transform: [{ rotate: '45deg' }] },
-  forgeName: { color: palette.text, fontFamily: fonts.bodySemi, fontSize: 14 },
-  forgeMeta: { fontFamily: fonts.bodyMedium, fontSize: 11, marginTop: 2, color: palette.textMuted },
+  forgeRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.08)' },
+  forgeName: { color: palette.text, fontFamily: fonts.bodySemi, fontSize: 14, lineHeight: 18 },
+  forgeMeta: { fontFamily: fonts.bodyMedium, fontSize: 11, marginTop: 3, color: '#A8B0C0' },
+  forgeOwned: { fontFamily: fonts.bodyMedium, fontSize: 11, marginTop: 3, color: palette.goldDim },
+  forgeActionCol: { alignItems: 'flex-end', gap: 5, minWidth: 78 },
+  forgeActionHint: { fontFamily: fonts.bodyMedium, fontSize: 10, color: '#8A93A3' },
   costBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingVertical: 5,
+    paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: 'rgba(212,168,75,0.35)',
-    backgroundColor: 'rgba(212,168,75,0.08)',
+    borderColor: 'rgba(212,168,75,0.4)',
+    backgroundColor: 'rgba(212,168,75,0.10)',
   },
   costBadgeGain: {
-    borderColor: 'rgba(61,139,110,0.45)',
-    backgroundColor: 'rgba(61,139,110,0.10)',
+    borderColor: 'rgba(61,139,110,0.5)',
+    backgroundColor: 'rgba(61,139,110,0.12)',
   },
-  forgeCost: { color: palette.goldBright, fontFamily: fonts.bodyBold, fontSize: 13 },
+  forgeCost: { color: palette.goldBright, fontFamily: fonts.bodyBold, fontSize: 14 },
   emptyForge: { ...type.caption, fontSize: 13, padding: 18 },
   noteRow: { flexDirection: 'row', gap: 8, marginTop: 22, alignItems: 'flex-start' },
   note: { ...type.caption, flex: 1, lineHeight: 19 },

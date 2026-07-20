@@ -189,15 +189,25 @@ function DomainChip({
   if (!c) return null;
   const col = factionColors[c.faction] ?? factionColors.Neutral;
   return (
-    <Pressable
-      onPress={() => canTap && onTap()}
-      onLongPress={onInspect}
-      delayLongPress={280}
-      accessibilityLabel={`${c.faction} Domain${d.exhausted ? ' (exhausted)' : ' — tap to Exhaust'}`}
-      style={[styles.domainTile, { borderColor: col.main + 'AA' }, d.exhausted && styles.exhausted]}
+    <View
+      style={[
+        styles.domainTile,
+        { borderColor: canTap ? col.main : col.main + '66' },
+        d.exhausted && styles.exhausted,
+        canTap && styles.domainTileHot,
+      ]}
     >
-      <CardView card={c} width={44} board exerted={!!d.exhausted} />
-    </Pressable>
+      <CardView
+        card={c}
+        width={50}
+        board
+        exerted={!!d.exhausted}
+        onPress={() => {
+          if (canTap) onTap();
+        }}
+        onLongPress={onInspect}
+      />
+    </View>
   );
 }
 
@@ -213,14 +223,16 @@ function PermCard({
   const c = tryGetCard(p.cardId);
   if (!c) return null;
   return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onInspect}
-      delayLongPress={280}
-      style={[styles.permCardWrap, p.exhausted && styles.exhausted]}
-    >
-      <CardView card={c} width={44} board exerted={!!p.exhausted} />
-    </Pressable>
+    <View style={[styles.permCardWrap, p.exhausted && styles.exhausted]}>
+      <CardView
+        card={c}
+        width={50}
+        board
+        exerted={!!p.exhausted}
+        onPress={onPress}
+        onLongPress={onInspect}
+      />
+    </View>
   );
 }
 
@@ -556,16 +568,21 @@ export function BattleScreen() {
         style={styles.bgImage}
         resizeMode="cover"
       />
-      <LinearGradient colors={['#080A0ECC', '#0C1018A8', '#0A0C12EE']} style={styles.bgFill} />
+      <LinearGradient
+        colors={['rgba(8,10,14,0.55)', 'rgba(12,16,24,0.35)', 'rgba(8,10,14,0.72)']}
+        style={styles.bgFill}
+      />
 
-      <View style={[styles.safe, { paddingTop: insets.top + 6, paddingBottom: bottomPad }]}>
+      <View style={[styles.safe, { paddingTop: insets.top + 4, paddingBottom: bottomPad }]}>
         {/* ── Enemy header ── */}
         <View style={styles.header}>
           <LifeStat life={foe.life} foe />
           <View style={styles.headerMeta}>
-            <Text style={styles.foeName}>{scenarioFoeName ?? 'Hollow Archivist'}</Text>
-            <Text style={styles.headerSub}>
-              Hand {foe.hand.length} · Deck {foe.deck.length} · Dom {foe.domains.length}
+            <Text style={styles.foeName} numberOfLines={2}>
+              {scenarioFoeName ?? 'Hollow Archivist'}
+            </Text>
+            <Text style={styles.headerSub} numberOfLines={1}>
+              Hand {foe.hand.length} · Deck {foe.deck.length}
             </Text>
           </View>
           <Animated.View
@@ -574,7 +591,7 @@ export function BattleScreen() {
               { borderColor: phasePillColor, opacity: inCombat ? combatGlow : 1 },
             ]}
           >
-            <Text style={[styles.phasePillText, { color: phasePillColor }]}>
+            <Text style={[styles.phasePillText, { color: phasePillColor }]} numberOfLines={1}>
               {inCombat
                 ? defending
                   ? 'Block!'
@@ -611,7 +628,7 @@ export function BattleScreen() {
         <PhaseTrack phase={battle.phase} />
 
         {!!hint && (
-          <Text style={styles.hint} numberOfLines={1}>
+          <Text style={styles.hint} numberOfLines={2}>
             {hint}
           </Text>
         )}
@@ -636,12 +653,13 @@ export function BattleScreen() {
           <View style={styles.half}>
             <View style={styles.permStrip}>
               <Text style={styles.domainCaption} numberOfLines={1}>
-                Enemy · Essence {essenceTotal(foe.essence)}
+                Enemy Domains · Essence {essenceTotal(foe.essence)}
               </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.domainRow}
+                nestedScrollEnabled
               >
                 {foe.domains.map((d) => (
                   <DomainChip
@@ -708,7 +726,9 @@ export function BattleScreen() {
 
           <View style={styles.divider}>
             <LinearGradient colors={['transparent', '#B9995C99', 'transparent']} style={styles.dividerLine} />
-            <Text style={styles.turnBadge}>Turn {battle.turn}</Text>
+            <View style={styles.turnBadgeWrap}>
+              <Text style={styles.turnBadge}>Turn {battle.turn}</Text>
+            </View>
           </View>
 
           {/* Player half: units then permanents */}
@@ -758,12 +778,13 @@ export function BattleScreen() {
             </View>
             <View style={styles.permStrip}>
               <Text style={styles.domainCaption} numberOfLines={1}>
-                You · Essence {essenceTotal(me.essence)} · tap Domain to Exhaust
+                Your Domains · Essence {essenceTotal(me.essence)} · tap to Exhaust
               </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.domainRow}
+                nestedScrollEnabled
               >
                 {me.domains.map((d) => (
                   <DomainChip
@@ -843,10 +864,12 @@ export function BattleScreen() {
         <View style={styles.dock}>
           <View style={styles.dockLeft}>
             <LifeStat life={me.life} />
-            <View style={{ flexShrink: 1 }}>
-              <Text style={styles.youLabel}>You</Text>
-              <Text style={styles.headerSub}>
-                Deck {me.deck.length} · Ashes {me.discard.length}
+            <View style={{ flexShrink: 1, minWidth: 0 }}>
+              <Text style={styles.youLabel} numberOfLines={1}>
+                You
+              </Text>
+              <Text style={styles.headerSub} numberOfLines={1}>
+                Deck {me.deck.length} · Ash {me.discard.length}
               </Text>
             </View>
           </View>
@@ -1128,17 +1151,18 @@ const styles = StyleSheet.create({
   headerMeta: { flex: 1 },
   foeName: {
     color: palette.text,
-    fontSize: 17,
-    fontFamily: fonts.display,
-    letterSpacing: 0.4,
-  },
-  youLabel: {
-    color: palette.text,
     fontSize: 15,
     fontFamily: fonts.display,
     letterSpacing: 0.3,
+    lineHeight: 19,
   },
-  headerSub: { ...type.caption, fontSize: 11.5, marginTop: 2 },
+  youLabel: {
+    color: palette.text,
+    fontSize: 14,
+    fontFamily: fonts.display,
+    letterSpacing: 0.3,
+  },
+  headerSub: { ...type.caption, fontSize: 11, marginTop: 2, color: '#C0C6D0' },
 
   lifeStat: {
     minWidth: 56,
@@ -1248,15 +1272,15 @@ const styles = StyleSheet.create({
   arena: {
     flex: 1,
     marginHorizontal: 4,
-    overflow: 'hidden',
-    minHeight: 160,
+    overflow: 'visible',
+    minHeight: 180,
   },
   half: {
     flex: 1,
     paddingVertical: 2,
     paddingHorizontal: 4,
-    justifyContent: 'center',
-    overflow: 'hidden',
+    justifyContent: 'space-between',
+    overflow: 'visible',
     minHeight: 0,
   },
   halfRow: {
@@ -1264,27 +1288,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     flex: 1,
-    minHeight: 0,
-    overflow: 'hidden',
+    minHeight: 100,
+    overflow: 'visible',
   },
   unitScroll: { flex: 1 },
   unitRow: {
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     paddingRight: 8,
-    paddingVertical: 4,
-    minHeight: 96,
+    paddingVertical: 6,
+    minHeight: 100,
   },
   fieldCardSlot: {
     paddingHorizontal: 2,
     paddingVertical: 2,
   },
   fieldCardLift: {
-    transform: [{ translateY: -3 }],
+    transform: [{ translateY: -2 }],
   },
   emptyField: {
     ...type.caption,
-    color: 'rgba(255,255,255,0.22)',
+    color: 'rgba(255,255,255,0.35)',
     paddingHorizontal: 12,
     paddingVertical: 20,
   },
@@ -1302,7 +1326,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: 'rgba(120,140,170,0.2)',
+    borderColor: 'rgba(120,140,170,0.28)',
     backgroundColor: 'rgba(10,13,18,0.55)',
   },
   statPillValue: {
@@ -1322,59 +1346,71 @@ const styles = StyleSheet.create({
   permStrip: {
     paddingLeft: 6,
     paddingRight: 4,
-    paddingVertical: 2,
-    maxHeight: 78,
+    paddingVertical: 4,
+    zIndex: 20,
+    elevation: 8,
   },
   domainCaption: {
-    ...type.caption,
-    fontSize: 9,
-    letterSpacing: 0.6,
+    fontFamily: fonts.bodySemi,
+    fontSize: 10,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    marginBottom: 2,
+    color: palette.gold,
+    marginBottom: 4,
   },
   domainRow: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
-    gap: 5,
+    gap: 8,
     alignItems: 'center',
     paddingRight: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
+    minHeight: 78,
   },
-  domainEmpty: { ...type.caption, fontSize: 10 },
+  domainEmpty: { ...type.caption, fontSize: 10, color: '#A8B0C0' },
   domainTile: {
     borderRadius: radii.sm,
-    borderWidth: 1,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(10,13,18,0.6)',
+    borderWidth: 2,
+    overflow: 'visible',
+    backgroundColor: 'rgba(10,13,18,0.75)',
+    padding: 2,
+  },
+  domainTileHot: {
+    shadowColor: palette.gold,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 6,
   },
   permCardWrap: {
     borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(107,90,58,0.5)',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(26,22,12,0.6)',
+    borderWidth: 2,
+    borderColor: 'rgba(180,150,80,0.65)',
+    overflow: 'visible',
+    backgroundColor: 'rgba(26,22,12,0.75)',
+    padding: 2,
   },
-  exhausted: { opacity: 0.4 },
+  exhausted: { opacity: 0.45 },
 
   divider: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 14,
+    height: 22,
+    marginVertical: 2,
   },
   dividerLine: { position: 'absolute', left: 24, right: 24, height: StyleSheet.hairlineWidth },
-  turnBadge: {
-    color: palette.gold,
-    fontSize: 9,
-    fontFamily: fonts.bodySemi,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    backgroundColor: 'rgba(10,13,18,0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
+  turnBadgeWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 3,
     borderRadius: radii.pill,
+    backgroundColor: 'rgba(10,13,18,0.88)',
     borderWidth: 1,
-    borderColor: 'rgba(212,168,75,0.25)',
-    overflow: 'hidden',
+    borderColor: 'rgba(212,168,75,0.45)',
+  },
+  turnBadge: {
+    color: palette.goldBright,
+    fontSize: 11,
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 1.2,
   },
 
   logIconBtn: {
@@ -1433,9 +1469,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     zIndex: 30,
     elevation: 12,
-    backgroundColor: 'rgba(8,10,14,0.96)',
+    backgroundColor: 'rgba(8,10,14,0.72)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(212,168,75,0.18)',
+    borderTopColor: 'rgba(212,168,75,0.22)',
   },
   dockLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   dockActions: {
@@ -1640,12 +1676,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-end',
-    paddingTop: 12,
-    paddingBottom: 2,
-    height: 128,
-    overflow: 'hidden',
+    paddingTop: 10,
+    paddingBottom: 4,
+    height: 136,
+    overflow: 'visible',
     zIndex: 10,
-    backgroundColor: palette.bgDeep,
+    backgroundColor: 'rgba(8,10,14,0.55)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(212,168,75,0.14)',
   },

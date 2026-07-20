@@ -28,7 +28,7 @@ const ICON_MAP = {
   story: 'book',
   rules: 'information-circle',
   trophy: 'trophy',
-  gold: 'logo-bitcoin',
+  gold: 'diamond',
   dust: 'sparkles',
   pack: 'gift',
   heart: 'heart',
