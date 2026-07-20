@@ -3,20 +3,35 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo-google-fonts/cinzel": "^0.4.2",
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@react-native-async-storage/async-storage": "^3.1.1",
+    "@react-navigation/bottom-tabs": "^7.18.11",
+    "@react-navigation/native": "^7.3.11",
+    "@react-navigation/native-stack": "^7.18.3",
     "expo": "~57.0.7",
+    "expo-font": "^57.0.1",
+    "expo-haptics": "^57.0.1",
+    "expo-linear-gradient": "^57.0.1",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
-    "react-native": "0.86.0"
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "^3.1.0",
+    "react-native-safe-area-context": "^5.8.0",
+    "react-native-screens": "^4.26.2",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "sharp": "^0.35.3",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test:engine": "npx --yes tsx scripts/engine-smoke.ts"
   },
   "private": true
 }
