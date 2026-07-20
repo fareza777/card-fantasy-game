@@ -25,6 +25,8 @@ type Props = {
   board?: boolean;
   /** Rotated / tapped (exerted). */
   exerted?: boolean;
+  attacking?: boolean;
+  blocking?: boolean;
   /** Live power/resolve override for board units. */
   power?: number;
   resolve?: number;
@@ -45,7 +47,7 @@ function CostPips({ cost, large, tiny }: { cost: EssenceCost; large?: boolean; t
   for (const [k, color] of map) {
     for (let i = 0; i < cost[k]; i++) pips.push({ color, key: `${k}-${i}` });
   }
-  const size = large ? 13 : tiny ? 6 : 9;
+  const size = large ? 13 : tiny ? 7 : 9;
   if (!pips.length) {
     return <Text style={[styles.domainTag, large && { fontSize: 10 }, tiny && { fontSize: 7 }]}>DOM</Text>;
   }
@@ -98,6 +100,8 @@ export const CardView = React.memo(function CardView({
   showcase,
   board,
   exerted,
+  attacking,
+  blocking,
   power,
   resolve,
   unowned,
@@ -107,25 +111,46 @@ export const CardView = React.memo(function CardView({
   // ── Board mode (TCG Claude style): complete mini card, fixed aspect ──
   if (board) {
     const h = Math.round(width * BOARD_RATIO);
-    const nameH = Math.max(18, Math.round(width * 0.24));
+    const nameSize = Math.max(9, Math.min(12, Math.round(width * 0.11)));
+    const statSize = Math.max(10, Math.min(13, Math.round(width * 0.13)));
+    const kwSize = Math.max(7, Math.min(9, Math.round(width * 0.09)));
+    const headerH = Math.max(20, nameSize + 9);
     const src = getCardArt(card.id);
     const p = power ?? card.power ?? 0;
     const r = resolve ?? card.resolve ?? 0;
+
+    const status = attacking ? 'ATTACK' : blocking ? 'BLOCK' : exerted ? 'TAP' : null;
+    const statusColor = attacking ? '#C44536' : blocking ? '#3B8FD9' : '#6B7280';
+    const showKeywords = card.type === 'Unit' && card.keywords.length > 0;
     return (
       <Pressable
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={280}
-        style={[
+        style={({ pressed }) => [
           styles.boardWrap,
-          { width, height: h, transform: [{ rotate: exerted ? '12deg' : '0deg' }] },
+          { width, height: h },
           selected && styles.boardSelected,
+          exerted && styles.boardExhausted,
+          { transform: [{ scale: pressed ? 0.96 : selected ? 1.04 : 1 }] },
         ]}
       >
         <LinearGradient colors={['#E6CE96', '#B9995C', '#6E5527', '#B9995C']} style={styles.boardGold}>
-          <View style={[styles.boardInner, { borderColor: faction.main }]}>
-            <View style={[styles.boardHeader, { height: nameH, minHeight: nameH }]}>
-              <Text style={styles.boardName} numberOfLines={1} allowFontScaling={false}>
+          <View
+            style={[
+              styles.boardInner,
+              { borderColor: selected ? palette.goldBright : faction.main, borderWidth: selected ? 2 : 1.5 },
+            ]}
+          >
+            <View style={[styles.boardHeader, { height: headerH, minHeight: headerH }]}>
+              <Text
+                style={[
+                  styles.boardName,
+                  { fontSize: nameSize, lineHeight: nameSize + 3 },
+                ]}
+                numberOfLines={1}
+                allowFontScaling={false}
+              >
                 {card.name}
               </Text>
               <CostPips cost={card.cost} tiny />
@@ -140,10 +165,27 @@ export const CardView = React.memo(function CardView({
               ) : (
                 <View style={{ flex: 1, backgroundColor: faction.deep }} />
               )}
+              {!!status && (
+                <View style={[styles.boardStatusPill, { backgroundColor: statusColor }]}>
+                  <Text style={styles.boardStatusText}>{status}</Text>
+                </View>
+              )}
+              {showKeywords && (
+                <View style={styles.boardKeywordStrip}>
+                  <Text style={[styles.boardKeywordText, { fontSize: kwSize }]} numberOfLines={1}>
+                    {card.keywords.join(' · ')}
+                  </Text>
+                </View>
+              )}
             </View>
             {card.type === 'Unit' && (
-              <View style={styles.boardStats}>
-                <Text style={styles.boardStatText} allowFontScaling={false}>
+              <View
+                style={[
+                  styles.boardStats,
+                  { borderColor: selected ? palette.goldBright : palette.gold + 'AA' },
+                ]}
+              >
+                <Text style={[styles.boardStatText, { fontSize: statSize }]} allowFontScaling={false}>
                   {p}/{r}
                 </Text>
               </View>
@@ -161,7 +203,7 @@ export const CardView = React.memo(function CardView({
       ? Math.round(width * 1.05)
       : Math.round(width * 0.82);
   const bodyMin = showcase ? 128 : compact ? 0 : 102;
-  const headerH = showcase ? 48 : compact ? 28 : 46;
+  const headerH = showcase ? 48 : compact ? 34 : 46;
   const height = showcase
     ? headerH + artH + bodyMin
     : compact
@@ -208,8 +250,12 @@ export const CardView = React.memo(function CardView({
           <View style={styles.inner}>
             <View style={[styles.header, { height: headerH, minHeight: headerH }, showcase && styles.headerLg]}>
               <Text
-                style={[styles.name, { fontSize: nameSize }, unowned && styles.unownedText]}
-                numberOfLines={compact ? 1 : 2}
+                style={[
+                  styles.name,
+                  { fontSize: nameSize, lineHeight: compact ? 13 : 15 },
+                  unowned && styles.unownedText,
+                ]}
+                numberOfLines={2}
                 allowFontScaling={false}
               >
                 {card.name}
@@ -474,7 +520,7 @@ const styles = StyleSheet.create({
   },
   compactCost: { color: palette.text, fontFamily: fonts.bodyBold, fontSize: 11 },
 
-  // Board (Claude-style)
+  // Board (battlefield)
   boardWrap: {
     borderRadius: 10,
     marginHorizontal: 3,
@@ -486,11 +532,12 @@ const styles = StyleSheet.create({
   },
   boardSelected: {
     shadowColor: palette.goldBright,
-    shadowOpacity: 0.9,
-    shadowRadius: 10,
+    shadowOpacity: 1,
+    shadowRadius: 12,
     elevation: 10,
     borderRadius: 10,
   },
+  boardExhausted: { opacity: 0.55 },
   boardGold: { flex: 1, borderRadius: 10, padding: 2 },
   boardInner: {
     flex: 1,
@@ -510,7 +557,6 @@ const styles = StyleSheet.create({
   boardName: {
     flex: 1,
     color: palette.text,
-    fontSize: 8,
     fontFamily: fonts.display,
     letterSpacing: 0.2,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
@@ -522,11 +568,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A0C12F5',
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: palette.gold + 'AA',
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  boardStatText: { color: palette.goldBright, fontSize: 10, fontFamily: fonts.bodyBold },
+  boardStatText: { color: palette.goldBright, fontFamily: fonts.bodyBold },
+  boardStatusPill: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  boardStatusText: {
+    color: '#fff',
+    fontSize: 8,
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 0.5,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+  },
+  boardKeywordStrip: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    right: 40,
+    backgroundColor: '#0A0C10DD',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  boardKeywordText: {
+    color: '#F0E6D0',
+    fontFamily: fonts.bodySemi,
+    letterSpacing: 0.3,
+  },
 });
 
 export function cardZoomWidth() {

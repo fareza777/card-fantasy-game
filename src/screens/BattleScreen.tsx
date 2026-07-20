@@ -24,7 +24,7 @@ import { fonts, type } from '../theme/typography';
 import { radii, shadows } from '../theme/tokens';
 import { Icon } from '../components/Icon';
 import { VaultButton } from '../components/VaultButton';
-import { CardDef, FieldPermanent, FieldUnit } from '../types/card';
+import { CardDef, FieldPermanent, FieldUnit, EssenceCost } from '../types/card';
 import { STEP_LABELS, canPlayType } from '../types/battleFlow';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -40,6 +40,37 @@ const PHASE_TRACK: { key: string; label: string; match: (p: string) => boolean }
 
 function essenceTotal(e: { dawn: number; tide: number; shade: number; ember: number; thorn: number; any: number }) {
   return e.dawn + e.tide + e.shade + e.ember + e.thorn + e.any;
+}
+
+const CARD_W = Math.min(100, Math.max(78, Math.round(SCREEN_W * 0.2)));
+const DOMAIN_W = Math.round(CARD_W * 0.74);
+const FIELD_CARD_H = Math.round(CARD_W * 1.42);
+
+const ESSENCE_TYPES: { key: keyof EssenceCost; label: string; color: string }[] = [
+  { key: 'dawn', label: 'D', color: factionColors.Dawn.main },
+  { key: 'tide', label: 'T', color: factionColors.Tide.main },
+  { key: 'shade', label: 'S', color: factionColors.Shade.main },
+  { key: 'ember', label: 'E', color: factionColors.Ember.main },
+  { key: 'thorn', label: 'R', color: factionColors.Thorn.main },
+  { key: 'any', label: 'A', color: '#C5CBD6' },
+];
+
+function EssenceBar({ essence, label }: { essence: EssenceCost; label?: string }) {
+  const total = essenceTotal(essence);
+  return (
+    <View style={styles.essenceBar}>
+      {!!label && <Text style={styles.essenceLabel}>{label}</Text>}
+      {total === 0 ? (
+        <Text style={styles.essenceEmpty}>0</Text>
+      ) : (
+        ESSENCE_TYPES.filter((t) => (essence[t.key] ?? 0) > 0).map((t) => (
+          <View key={t.key} style={[styles.essencePip, { backgroundColor: t.color }]}>
+            <Text style={styles.essencePipText}>{essence[t.key]}</Text>
+          </View>
+        ))
+      )}
+    </View>
+  );
 }
 
 function PhaseTrack({ phase }: { phase: string }) {
@@ -103,7 +134,7 @@ function DyingGhost({
       ]}
       pointerEvents="none"
     >
-      <CardView card={card} width={64} board />
+      <CardView card={card} width={CARD_W} board />
       <View style={styles.ghostSlash} />
     </Animated.View>
   );
@@ -115,20 +146,22 @@ function FieldCard({
   attacking,
   blocking,
   selected,
-  tapped,
+  exhausted,
   targeting,
   onPress,
   onLongPress,
+  width = CARD_W,
 }: {
   unit: FieldUnit;
   foe?: boolean;
   attacking?: boolean;
   blocking?: boolean;
   selected?: boolean;
-  tapped?: boolean;
+  exhausted?: boolean;
   targeting?: boolean;
   onPress: () => void;
   onLongPress: () => void;
+  width?: number;
 }) {
   const card = tryGetCard(unit.cardId);
   if (!card) return null;
@@ -138,13 +171,17 @@ function FieldCard({
         styles.fieldCardSlot,
         (selected || attacking || blocking) && styles.fieldCardLift,
         targeting && styles.fieldAimGlow,
+        attacking && styles.fieldCardAttackGlow,
+        blocking && styles.fieldCardBlockGlow,
       ]}
     >
       <CardView
         card={card}
-        width={64}
+        width={width}
         board
-        exerted={tapped}
+        exerted={exhausted}
+        attacking={attacking}
+        blocking={blocking}
         selected={selected || attacking || blocking}
         power={unit.power + unit.tempPower}
         resolve={unit.resolve}
@@ -179,11 +216,13 @@ function DomainChip({
   canTap,
   onTap,
   onInspect,
+  width = DOMAIN_W,
 }: {
   d: FieldPermanent;
   canTap: boolean;
   onTap: () => void;
   onInspect: () => void;
+  width?: number;
 }) {
   const c = tryGetCard(d.cardId);
   if (!c) return null;
@@ -192,14 +231,14 @@ function DomainChip({
     <View
       style={[
         styles.domainTile,
-        { borderColor: canTap ? col.main : col.main + '66' },
+        { borderColor: canTap ? col.main : col.main + '66', borderWidth: canTap ? 3 : 2 },
         d.exhausted && styles.exhausted,
         canTap && styles.domainTileHot,
       ]}
     >
       <CardView
         card={c}
-        width={50}
+        width={width}
         board
         exerted={!!d.exhausted}
         onPress={() => {
@@ -215,10 +254,12 @@ function PermCard({
   p,
   onPress,
   onInspect,
+  width = DOMAIN_W,
 }: {
   p: FieldPermanent;
   onPress?: () => void;
   onInspect: () => void;
+  width?: number;
 }) {
   const c = tryGetCard(p.cardId);
   if (!c) return null;
@@ -226,7 +267,7 @@ function PermCard({
     <View style={[styles.permCardWrap, p.exhausted && styles.exhausted]}>
       <CardView
         card={c}
-        width={50}
+        width={width}
         board
         exerted={!!p.exhausted}
         onPress={onPress}
@@ -266,7 +307,7 @@ function DiscardFlyAway({
         },
       ]}
     >
-      <CardView card={card} width={70} compact />
+      <CardView card={card} width={84} compact />
     </Animated.View>
   );
 }
@@ -433,9 +474,9 @@ export function BattleScreen() {
       return 'Block: tap attacker, then YOUR Unit (tap again to clear) — or Confirm';
     }
     if (!myTurn && !canAct) return 'Enemy turn…';
-    if (battle.phase === 'main1') return 'Domains · tap a Domain to Exhaust for Essence · then Play';
-    if (battle.phase === 'combat_attackers') return 'Tap Units to declare attackers — then Confirm Attack';
-    if (battle.phase === 'combat_blockers') return 'Review enemy blocks — Confirm for combat damage';
+    if (battle.phase === 'main1') return 'Tap a Domain for Essence, then play a card';
+    if (battle.phase === 'combat_attackers') return 'Tap Units to attack, then Confirm';
+    if (battle.phase === 'combat_blockers') return 'Confirm to resolve combat damage';
     if (battle.phase === 'main2') return 'Play more, then End Turn';
     return STEP_LABELS?.[battle.phase] ?? '';
   }, [battle, myTurn, over, enemyBusy, canAct, defending, lastGoldGain]);
@@ -558,7 +599,39 @@ export function BattleScreen() {
         ? '#9AA3B5'
         : '#6B7280';
   const handCount = me.hand.length;
-  const handW = Math.min(82, Math.max(68, SCREEN_W / Math.max(handCount, 5) - 4));
+  const { handW, handH, handOverlap, fanHeight } = useMemo(() => {
+    const maxW = 96;
+    const minW = 72;
+    const baseW = Math.min(maxW, Math.max(minW, Math.round(SCREEN_W * 0.22)));
+    const avail = SCREEN_W - 48;
+    const n = Math.max(1, handCount);
+
+    let width = baseW;
+    let overlap = 0;
+    if (n === 1) {
+      width = Math.min(baseW, avail);
+    } else {
+      const needed = baseW * n;
+      if (needed <= avail) {
+        overlap = 0;
+        width = Math.min(baseW, Math.round(avail / n));
+      } else {
+        const maxOverlap = 0.36;
+        const maxPossible = baseW * (n - 1) * maxOverlap;
+        if (needed - avail <= maxPossible) {
+          overlap = (needed - avail) / (baseW * (n - 1));
+          width = baseW;
+        } else {
+          overlap = maxOverlap;
+          width = Math.max(minW, Math.round(avail / (1 + (n - 1) * (1 - maxOverlap))));
+        }
+      }
+    }
+    const artH = Math.round(width * 1.05);
+    const h = 34 + artH + 18;
+    const fanH = h + 20;
+    return { handW: width, handH: h, handOverlap: overlap, fanHeight: fanH };
+  }, [handCount]);
   const combatGlow = combatPulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
 
   return (
@@ -620,7 +693,7 @@ export function BattleScreen() {
               hitSlop={8}
               accessibilityLabel="Concede"
             >
-              <Text style={styles.concedeText}>Concede</Text>
+              <Icon name="close" size={16} color="#E8A090" />
             </Pressable>
           )}
         </View>
@@ -652,9 +725,7 @@ export function BattleScreen() {
           {/* Enemy half: permanents then units (top of board) */}
           <View style={styles.half}>
             <View style={styles.permStrip}>
-              <Text style={styles.domainCaption} numberOfLines={1}>
-                Enemy Domains · Essence {essenceTotal(foe.essence)}
-              </Text>
+              <EssenceBar essence={foe.essence} label="Enemy Essence" />
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -697,7 +768,7 @@ export function BattleScreen() {
                     foe
                     attacking={combat.attackers.includes(u.instanceId)}
                     selected={combat.selectedAttackerForBlock === u.instanceId}
-                    tapped={u.exhausted || combat.attackers.includes(u.instanceId)}
+                    exhausted={u.exhausted}
                     targeting={
                       !!battle.pendingTarget &&
                       (battle.pendingTarget.mode === 'enemyUnit' ||
@@ -755,7 +826,7 @@ export function BattleScreen() {
                       unit={u}
                       attacking={isAtk}
                       blocking={isBlk}
-                      tapped={u.exhausted || isAtk}
+                      exhausted={u.exhausted}
                       targeting={battle.pendingTarget?.mode === 'ownUnit'}
                       onPress={() => onUnitMine(u.instanceId)}
                       onLongPress={() => inspect(tryGetCard(u.cardId))}
@@ -777,9 +848,7 @@ export function BattleScreen() {
               </ScrollView>
             </View>
             <View style={styles.permStrip}>
-              <Text style={styles.domainCaption} numberOfLines={1}>
-                Your Domains · Essence {essenceTotal(me.essence)} · tap to Exhaust
-              </Text>
+              <EssenceBar essence={me.essence} label="Essence" />
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -1053,7 +1122,7 @@ export function BattleScreen() {
         </Modal>
 
         {/* ── Hand ── */}
-        <View style={styles.handFan}>
+        <View style={[styles.handFan, { height: fanHeight }]}>
           {me.hand.map((id, idx) => {
             const handCard = tryGetCard(id);
             if (!handCard) return null;
@@ -1067,7 +1136,7 @@ export function BattleScreen() {
               });
             const mid = (handCount - 1) / 2;
             const offset = idx - mid;
-            const rot = offset * 2.6;
+            const rot = offset * 2.0;
             const lift = Math.abs(offset) * -1.5;
             const selected = battle.selectedHandIndex === idx;
             return (
@@ -1076,10 +1145,10 @@ export function BattleScreen() {
                   style={[
                     styles.handCardWrap,
                     {
-                      marginLeft: idx === 0 ? 0 : -handW * 0.42,
+                      marginLeft: idx === 0 ? 0 : -Math.round(handW * handOverlap),
                       zIndex: selected ? 40 : 10 + idx,
                       transform: [
-                        { translateY: selected ? -10 + lift : lift },
+                        { translateY: selected ? -18 + lift : lift },
                         { rotate: `${rot}deg` },
                       ],
                       opacity: playable ? 1 : 0.45,
@@ -1137,24 +1206,24 @@ const styles = StyleSheet.create({
   muted: { ...type.caption, textAlign: 'center', marginTop: 40, marginBottom: 16 },
   discardFx: {
     position: 'absolute',
-    left: SCREEN_W / 2 - 35,
-    bottom: 200,
+    left: SCREEN_W / 2 - 42,
+    bottom: 196,
     zIndex: 80,
   },
 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 10,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   headerMeta: { flex: 1 },
   foeName: {
     color: palette.text,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: fonts.display,
     letterSpacing: 0.3,
-    lineHeight: 19,
+    lineHeight: 18,
   },
   youLabel: {
     color: palette.text,
@@ -1165,7 +1234,7 @@ const styles = StyleSheet.create({
   headerSub: { ...type.caption, fontSize: 11, marginTop: 2, color: '#C0C6D0' },
 
   lifeStat: {
-    minWidth: 56,
+    minWidth: 60,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: radii.md,
@@ -1181,7 +1250,7 @@ const styles = StyleSheet.create({
   },
   lifeStatNum: {
     color: palette.goldBright,
-    fontSize: 20,
+    fontSize: 21,
     fontFamily: fonts.displayBlack,
     marginTop: 1,
   },
@@ -1225,26 +1294,30 @@ const styles = StyleSheet.create({
   phasePill: {
     borderWidth: 1.5,
     borderRadius: radii.pill,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
+    minWidth: 78,
+    alignItems: 'center',
     backgroundColor: 'rgba(20,16,12,0.85)',
   },
-  phasePillText: { fontSize: 11.5, fontFamily: fonts.bodySemi, letterSpacing: 0.6 },
+  phasePillText: { fontSize: 12, fontFamily: fonts.bodySemi, letterSpacing: 0.5 },
 
   phaseTrack: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     gap: 0,
   },
   phaseStep: {
-    paddingHorizontal: 7,
+    paddingHorizontal: 5,
     paddingVertical: 5,
     borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: 'transparent',
+    minWidth: 38,
+    alignItems: 'center',
   },
   phaseStepActive: {
     borderColor: 'rgba(212,168,75,0.6)',
@@ -1252,33 +1325,36 @@ const styles = StyleSheet.create({
   },
   phaseStepText: {
     color: '#5F6B7E',
-    fontSize: 9.5,
+    fontSize: 10,
     fontFamily: fonts.bodySemi,
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
   phaseStepTextActive: { color: palette.goldBright },
-  phaseRail: { width: 8, height: 1, backgroundColor: '#2A303C' },
+  phaseRail: { width: 10, height: 1.5, backgroundColor: '#2A303C' },
   phaseRailHot: { backgroundColor: 'rgba(212,168,75,0.4)' },
 
   hint: {
     ...type.caption,
     textAlign: 'center',
     fontStyle: 'italic',
-    paddingHorizontal: 16,
-    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+    marginBottom: 2,
+    lineHeight: 18,
+    minHeight: 22,
   },
 
   arena: {
     flex: 1,
-    marginHorizontal: 4,
+    marginHorizontal: 6,
     overflow: 'visible',
-    minHeight: 180,
+    minHeight: 176,
   },
   half: {
     flex: 1,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
     justifyContent: 'space-between',
     overflow: 'visible',
     minHeight: 0,
@@ -1286,25 +1362,37 @@ const styles = StyleSheet.create({
   halfRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     flex: 1,
-    minHeight: 100,
+    minHeight: 110,
     overflow: 'visible',
   },
   unitScroll: { flex: 1 },
   unitRow: {
     alignItems: 'center',
-    gap: 6,
-    paddingRight: 8,
-    paddingVertical: 6,
-    minHeight: 100,
+    gap: 8,
+    paddingRight: 4,
+    paddingLeft: 4,
+    paddingVertical: 8,
+    minHeight: 110,
   },
-  fieldCardSlot: {
-    paddingHorizontal: 2,
-    paddingVertical: 2,
-  },
+  fieldCardSlot: { paddingHorizontal: 3, paddingVertical: 3 },
   fieldCardLift: {
-    transform: [{ translateY: -2 }],
+    transform: [{ translateY: -4 }, { scale: 1.03 }],
+  },
+  fieldCardAttackGlow: {
+    shadowColor: '#C44536',
+    shadowOpacity: 0.9,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+  fieldCardBlockGlow: {
+    shadowColor: '#3B8FD9',
+    shadowOpacity: 0.9,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
   },
   emptyField: {
     ...type.caption,
@@ -1313,10 +1401,11 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   fieldAimGlow: {
-    shadowColor: '#C44536',
-    shadowOpacity: 0.7,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowColor: '#FFB84D',
+    shadowOpacity: 0.9,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 9,
   },
   statPill: {
     alignItems: 'center',
@@ -1358,14 +1447,51 @@ const styles = StyleSheet.create({
     color: palette.gold,
     marginBottom: 4,
   },
+  essenceBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 4,
+  },
+  essenceLabel: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: palette.gold,
+    marginRight: 4,
+  },
+  essencePip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.35)',
+  },
+  essencePipText: {
+    color: '#0A0E14',
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.2,
+  },
+  essenceEmpty: {
+    color: palette.textMuted,
+    fontSize: 11,
+    fontFamily: fonts.bodySemi,
+  },
   domainRow: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
-    gap: 8,
+    gap: 6,
     alignItems: 'center',
-    paddingRight: 8,
-    paddingVertical: 4,
-    minHeight: 78,
+    paddingRight: 4,
+    paddingVertical: 6,
+    minHeight: 84,
   },
   domainEmpty: { ...type.caption, fontSize: 10, color: '#A8B0C0' },
   domainTile: {
@@ -1373,7 +1499,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     overflow: 'visible',
     backgroundColor: 'rgba(10,13,18,0.75)',
-    padding: 2,
+    padding: 3,
   },
   domainTileHot: {
     shadowColor: palette.gold,
@@ -1387,7 +1513,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(180,150,80,0.65)',
     overflow: 'visible',
     backgroundColor: 'rgba(26,22,12,0.75)',
-    padding: 2,
+    padding: 3,
   },
   exhausted: { opacity: 0.45 },
 
@@ -1425,15 +1551,16 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   concedeBtn: {
-    marginLeft: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: radii.sm,
+    marginLeft: 4,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: 'rgba(196,69,54,0.4)',
+    borderColor: 'rgba(196,69,54,0.45)',
     backgroundColor: 'rgba(26,16,20,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  concedeText: { color: '#E8A090', fontSize: 10, fontFamily: fonts.bodySemi, letterSpacing: 0.4 },
   logModalBg: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.65)',
@@ -1462,46 +1589,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingTop: 8,
-    paddingBottom: 6,
-    gap: 6,
-    flexWrap: 'wrap',
+    paddingBottom: 8,
+    gap: 8,
+    flexWrap: 'nowrap',
     zIndex: 30,
     elevation: 12,
     backgroundColor: 'rgba(8,10,14,0.72)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(212,168,75,0.22)',
   },
-  dockLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  dockLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, flexBasis: 0 },
   dockActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexShrink: 1,
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     justifyContent: 'flex-end',
-    maxWidth: '100%',
   },
   dockBtnGhost: {
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: '#3A4252',
-    paddingHorizontal: 12,
+    paddingHorizontal: 9,
     paddingVertical: 10,
-    minWidth: 96,
-    minHeight: 42,
+    minWidth: 76,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   dockBtnPlay: {
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: 'rgba(212,168,75,0.55)',
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 10,
-    minWidth: 96,
-    minHeight: 42,
+    minWidth: 88,
+    minHeight: 44,
+    flexGrow: 0,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1510,9 +1638,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    minWidth: 104,
-    minHeight: 42,
-    maxWidth: 152,
+    minWidth: 120,
+    minHeight: 44,
+    flexGrow: 1,
+    maxWidth: 180,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1527,18 +1656,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: radii.md,
   },
-  dockBtnTextMuted: { color: palette.textMuted, fontSize: 12, fontFamily: fonts.bodySemi },
+  dockBtnTextMuted: { color: palette.textMuted, fontSize: 12.5, fontFamily: fonts.bodySemi },
   dockBtnTextGold: {
     color: palette.goldBright,
-    fontSize: 12.5,
+    fontSize: 13,
     fontFamily: fonts.display,
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
   dockBtnTextLight: {
     color: '#F5E6DC',
-    fontSize: 12.5,
+    fontSize: 13,
     fontFamily: fonts.display,
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
   ashwellSub: { ...type.caption, marginTop: 4, marginBottom: 4, fontStyle: 'italic' },
   ashwellRow: {
@@ -1605,11 +1734,10 @@ const styles = StyleSheet.create({
   responsePassText: { color: '#0A1420', fontFamily: fonts.bodyBold, fontSize: 11 },
 
   tutorialOverlay: {
-    position: 'absolute',
-    top: 4,
-    left: 12,
-    right: 12,
-    zIndex: 35,
+    position: 'relative',
+    marginHorizontal: 12,
+    marginVertical: 4,
+    zIndex: 20,
     alignItems: 'center',
   },
   tutorialCard: {
@@ -1676,9 +1804,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-end',
-    paddingTop: 10,
+    paddingTop: 8,
     paddingBottom: 4,
-    height: 136,
+    minHeight: 126,
     overflow: 'visible',
     zIndex: 10,
     backgroundColor: 'rgba(8,10,14,0.55)',
