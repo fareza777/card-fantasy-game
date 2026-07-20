@@ -16,6 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useGameStore, PACK_PRICE } from '../store/gameStore';
 import { VaultScreenShell } from '../components/VaultScreenShell';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { Panel } from '../components/Panel';
+import { Icon } from '../components/Icon';
 import { ALL_CARDS } from '../engine/cardDb';
 import {
   DISENCHANT_DUST,
@@ -24,10 +27,56 @@ import {
   maxDisenchantable,
 } from '../engine/forge';
 import { palette, rarityColors } from '../theme/colors';
+import { type, fonts } from '../theme/typography';
+import { radii, shadows } from '../theme/tokens';
 import { CardDef, Rarity } from '../types/card';
 import { RootStackParamList } from '../navigation/types';
 
 const MULTI_PRICE = PACK_PRICE * 3;
+
+function BalancePill({ icon, value, tint }: { icon: 'gold' | 'dust'; value: number; tint: string }) {
+  return (
+    <View style={[styles.balancePill, { borderColor: tint + '55' }]}>
+      <Icon name={icon} size={13} color={tint} />
+      <Text style={[styles.balanceText, { color: tint }]}>{value}</Text>
+    </View>
+  );
+}
+
+function BuyButton({
+  label,
+  price,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  price: number;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.buyBtn,
+        !disabled && shadows.goldGlow,
+        pressed && !disabled && { transform: [{ scale: 0.97 }], opacity: 0.92 },
+      ]}
+    >
+      <LinearGradient
+        colors={disabled ? ['#5A5040', '#4A4238'] : ['#F0C75E', '#D4A84B', '#C09A3E']}
+        style={styles.buyBtnGrad}
+      >
+        <Text style={[styles.buyText, disabled && { color: '#2A241A' }]}>{label}</Text>
+        <View style={styles.buyPriceRow}>
+          <Icon name="gold" size={11} color={disabled ? '#2A241A' : '#1A1200'} />
+          <Text style={[styles.buySub, disabled && { color: '#2A241A' }]}>{price}</Text>
+        </View>
+      </LinearGradient>
+    </Pressable>
+  );
+}
 
 export function ShopScreen() {
   const insets = useSafeAreaInsets();
@@ -100,191 +149,278 @@ export function ShopScreen() {
   return (
     <VaultScreenShell
       bgImage={require('../../assets/ui/bg-home-vault.png')}
-      gradientColors={['#0B0E14EE', '#122018CC', '#0B0E14F5']}
+      gradientColors={['rgba(7,10,15,0.66)', 'rgba(10,14,20,0.86)', 'rgba(7,10,15,0.97)']}
     >
       <ScrollView
         style={styles.root}
         contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 88 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Shop</Text>
-        <Text style={styles.gold}>
-          {gold} gold · {dust} dust
-        </Text>
-
-        <View style={styles.packCard}>
-          <Image
-            source={require('../../assets/ui/booster-pack-origins.png')}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-          <LinearGradient colors={['#2A1F0A', '#1A2230']} style={styles.packInner}>
-            <Text style={styles.packLabel}>ORIGINS BOOSTER</Text>
-            <Text style={styles.packName}>Rune Vault Pack</Text>
-            <Text style={styles.packDesc}>
-              11 cards per pack{'\n'}
-              7 Common · 3 Uncommon · 1 Rare+{'\n'}
-              (~3% chance the rare slot is Legendary){'\n'}
-              5 duds in a row? Next pack guarantees a new card.
-            </Text>
-            <View style={styles.buyRow}>
-              <Pressable
-                onPress={() => buy(1)}
-                style={[styles.buyBtn, gold < PACK_PRICE && styles.buyDisabled]}
-              >
-                <Text style={styles.buyText}>Open ×1</Text>
-                <Text style={styles.buySub}>{PACK_PRICE} Gold</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => buy(3)}
-                style={[styles.buyBtn, styles.buyBtnAlt, gold < MULTI_PRICE && styles.buyDisabled]}
-              >
-                <Text style={styles.buyText}>Open ×3</Text>
-                <Text style={styles.buySub}>{MULTI_PRICE} Gold</Text>
-              </Pressable>
+        <ScreenHeader
+          kicker="MARKET"
+          title="Shop"
+          right={
+            <View style={styles.balanceRow}>
+              <BalancePill icon="gold" value={gold} tint={palette.goldBright} />
+              <BalancePill icon="dust" value={dust} tint="#B8C7FF" />
             </View>
-          </LinearGradient>
-        </View>
-
-        <Text style={styles.sectionTitle}>Rune Forge</Text>
-        <Text style={styles.sectionHint}>
-          Disenchant spare copies for dust · Forge missing cards (Legendaries cost {FORGE_COST.Legendary} dust).
-        </Text>
-        <Text style={styles.rates}>
-          Dust: C{DISENCHANT_DUST.Common}/U{DISENCHANT_DUST.Uncommon}/R{DISENCHANT_DUST.Rare}/L
-          {DISENCHANT_DUST.Legendary} · Forge: C{FORGE_COST.Common}/U{FORGE_COST.Uncommon}/R
-          {FORGE_COST.Rare}
-        </Text>
-
-        <View style={styles.modeRow}>
-          <Pressable
-            onPress={() => setMode('forge')}
-            style={[styles.modeChip, mode === 'forge' && styles.modeChipOn]}
-          >
-            <Text style={[styles.modeText, mode === 'forge' && styles.modeTextOn]}>Forge</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setMode('dust')}
-            style={[styles.modeChip, mode === 'dust' && styles.modeChipOn]}
-          >
-            <Text style={[styles.modeText, mode === 'dust' && styles.modeTextOn]}>Disenchant</Text>
-          </Pressable>
-        </View>
-
-        <TextInput
-          placeholder={mode === 'forge' ? 'Search cards to forge…' : 'Search cards to dust…'}
-          placeholderTextColor={palette.textMuted}
-          value={forgeQ}
-          onChangeText={setForgeQ}
-          style={styles.search}
+          }
         />
 
-        {craftable.map((c) => {
-          const qty = owned[c.id] ?? 0;
-          const cost = forgeCost(c.id);
-          const spare = maxDisenchantable(c.id, owned, deck);
-          return (
-            <Pressable
-              key={c.id}
-              onPress={() => (mode === 'forge' ? onForge(c) : onDust(c))}
-              style={styles.forgeRow}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.forgeName} numberOfLines={1}>
-                  {c.name}
-                </Text>
-                <Text style={[styles.forgeMeta, { color: rarityColors[c.rarity as Rarity] }]}>
-                  {c.rarity} · {c.faction} · owned ×{qty}
-                  {mode === 'dust' ? ` · spare ×${spare}` : ''}
-                </Text>
-              </View>
-              <Text style={styles.forgeCost}>
-                {mode === 'forge' ? `−${cost}` : `+${DISENCHANT_DUST[c.rarity]}`}
-              </Text>
-            </Pressable>
-          );
-        })}
-        {!craftable.length && (
-          <Text style={styles.emptyForge}>
-            {mode === 'forge'
-              ? 'No affordable forge targets — earn dust by disenchanting extras.'
-              : 'No spare copies to disenchant (deck copies stay protected).'}
-          </Text>
-        )}
+        <Panel elevated style={styles.packCard}>
+          <View>
+            <Image
+              source={require('../../assets/ui/booster-pack-origins.png')}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+            <LinearGradient
+              colors={['transparent', 'rgba(10,13,18,0.92)']}
+              style={styles.heroFade}
+              pointerEvents="none"
+            />
+          </View>
+          <View style={styles.packInner}>
+            <Text style={type.kicker}>ORIGINS BOOSTER</Text>
+            <Text style={styles.packName}>Rune Vault Pack</Text>
+            <View style={styles.oddsList}>
+              <OddsRow icon="cards" text="11 cards per pack" />
+              <OddsRow icon="check" text="7 Common · 3 Uncommon · 1 Rare+" />
+              <OddsRow icon="dust" text="~3% chance the rare slot is Legendary" />
+              <OddsRow icon="shield" text="5 duds in a row? Next pack guarantees new" />
+            </View>
+            <View style={styles.buyRow}>
+              <BuyButton label="Open ×1" price={PACK_PRICE} disabled={gold < PACK_PRICE} onPress={() => buy(1)} />
+              <BuyButton label="Open ×3" price={MULTI_PRICE} disabled={gold < MULTI_PRICE} onPress={() => buy(3)} />
+            </View>
+          </View>
+        </Panel>
 
-        <Text style={styles.note}>
-          Tip: Casual duel +50 · Story scenarios 40–100 gold. Packs expand your collection for stronger
-          decks.
-        </Text>
+        <View style={styles.forgeHeader}>
+          <Text style={styles.forgeTitle}>Rune Forge</Text>
+          <Text style={styles.sectionHint}>
+            Disenchant spare copies for dust · Forge missing cards (Legendaries cost{' '}
+            {FORGE_COST.Legendary} dust).
+          </Text>
+          <Text style={styles.rates}>
+            Dust: C{DISENCHANT_DUST.Common}/U{DISENCHANT_DUST.Uncommon}/R{DISENCHANT_DUST.Rare}/L
+            {DISENCHANT_DUST.Legendary} · Forge: C{FORGE_COST.Common}/U{FORGE_COST.Uncommon}/R
+            {FORGE_COST.Rare}
+          </Text>
+        </View>
+
+        <View style={styles.modeToggle}>
+          {(['forge', 'dust'] as const).map((m) => {
+            const active = mode === m;
+            return (
+              <Pressable
+                key={m}
+                onPress={() => setMode(m)}
+                style={[styles.modeSeg, active && styles.modeSegActive]}
+              >
+                <Icon
+                  name={m === 'forge' ? 'dust' : 'refresh'}
+                  size={13}
+                  color={active ? palette.goldBright : palette.textMuted}
+                />
+                <Text style={[styles.modeText, active && styles.modeTextOn]}>
+                  {m === 'forge' ? 'Forge' : 'Disenchant'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.searchWrap}>
+          <Icon name="search" size={15} color={palette.textMuted} />
+          <TextInput
+            placeholder={mode === 'forge' ? 'Search cards to forge…' : 'Search cards to dust…'}
+            placeholderTextColor="#5F6B7E"
+            value={forgeQ}
+            onChangeText={setForgeQ}
+            style={styles.search}
+          />
+        </View>
+
+        <Panel style={styles.forgeList}>
+          {craftable.map((c, idx) => {
+            const qty = owned[c.id] ?? 0;
+            const cost = forgeCost(c.id);
+            const spare = maxDisenchantable(c.id, owned, deck);
+            const rc = rarityColors[c.rarity as Rarity];
+            return (
+              <Pressable
+                key={c.id}
+                onPress={() => (mode === 'forge' ? onForge(c) : onDust(c))}
+                style={({ pressed }) => [
+                  styles.forgeRow,
+                  idx > 0 && styles.forgeRowBorder,
+                  pressed && { backgroundColor: 'rgba(212,168,75,0.06)' },
+                ]}
+              >
+                <View style={[styles.rarityDot, { backgroundColor: rc }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.forgeName} numberOfLines={1}>
+                    {c.name}
+                  </Text>
+                  <Text style={styles.forgeMeta}>
+                    <Text style={{ color: rc }}>{c.rarity}</Text>
+                    {` · ${c.faction} · owned ×${qty}`}
+                    {mode === 'dust' ? ` · spare ×${spare}` : ''}
+                  </Text>
+                </View>
+                <View style={[styles.costBadge, mode === 'dust' && styles.costBadgeGain]}>
+                  <Icon
+                    name="dust"
+                    size={11}
+                    color={mode === 'forge' ? palette.goldBright : '#9EE8C4'}
+                  />
+                  <Text style={[styles.forgeCost, mode === 'dust' && { color: '#9EE8C4' }]}>
+                    {mode === 'forge' ? `−${cost}` : `+${DISENCHANT_DUST[c.rarity]}`}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          {!craftable.length && (
+            <Text style={styles.emptyForge}>
+              {mode === 'forge'
+                ? 'No affordable forge targets — earn dust by disenchanting extras.'
+                : 'No spare copies to disenchant (deck copies stay protected).'}
+            </Text>
+          )}
+        </Panel>
+
+        <View style={styles.noteRow}>
+          <Icon name="rules" size={13} color={palette.goldDim} />
+          <Text style={styles.note}>
+            Casual duel +50 gold · Story scenarios 40–100 gold. Packs expand your collection for
+            stronger decks.
+          </Text>
+        </View>
       </ScrollView>
     </VaultScreenShell>
   );
 }
 
+function OddsRow({ icon, text }: { icon: 'cards' | 'check' | 'dust' | 'shield'; text: string }) {
+  return (
+    <View style={styles.oddsRow}>
+      <Icon name={icon} size={13} color={palette.goldDim} />
+      <Text style={styles.oddsText}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 20 },
-  title: { color: palette.text, fontSize: 28, fontWeight: '800' },
-  gold: { color: palette.goldBright, fontSize: 16, marginBottom: 24, marginTop: 4 },
-  packCard: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: palette.gold },
-  heroImage: { width: '100%', height: 160 },
-  packInner: { padding: 24 },
-  packLabel: { color: palette.gold, letterSpacing: 2, fontSize: 11, fontWeight: '700' },
-  packName: { color: palette.text, fontSize: 26, fontWeight: '800', marginVertical: 8 },
-  packDesc: { color: palette.textMuted, lineHeight: 22, marginBottom: 16 },
-  buyRow: { flexDirection: 'row', gap: 10 },
-  buyBtn: {
-    flex: 1,
-    backgroundColor: palette.gold,
-    borderRadius: 12,
-    paddingVertical: 12,
+  root: { flex: 1, paddingHorizontal: 18 },
+  balanceRow: { flexDirection: 'row', gap: 8 },
+  balancePill: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  buyBtnAlt: { backgroundColor: palette.goldBright },
-  buyDisabled: { backgroundColor: '#5A5040' },
-  buyText: { color: '#1A1200', fontWeight: '800', fontSize: 15 },
-  buySub: { color: '#1A1200AA', fontWeight: '700', fontSize: 11, marginTop: 2 },
-  sectionTitle: {
-    color: palette.text,
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: 28,
-    marginBottom: 6,
-  },
-  sectionHint: { color: palette.textMuted, fontSize: 13, lineHeight: 18, marginBottom: 6 },
-  rates: { color: '#8A919C', fontSize: 11, marginBottom: 12 },
-  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  modeChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bgPanel,
-  },
-  modeChipOn: { borderColor: palette.gold, backgroundColor: palette.gold + '22' },
-  modeText: { color: palette.textMuted, fontWeight: '700', fontSize: 13 },
-  modeTextOn: { color: palette.goldBright },
-  search: {
-    backgroundColor: palette.bgPanel,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
-    color: palette.text,
+    gap: 6,
+    paddingVertical: 6,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    backgroundColor: 'rgba(16,21,30,0.85)',
+  },
+  balanceText: { fontFamily: fonts.bodyBold, fontSize: 13 },
+  packCard: { marginBottom: 8 },
+  heroImage: { width: '100%', height: 168 },
+  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80 },
+  packInner: { padding: 20, paddingTop: 16 },
+  packName: {
+    fontFamily: fonts.displayBlack,
+    color: palette.text,
+    fontSize: 24,
+    letterSpacing: 0.8,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  oddsList: { gap: 7, marginBottom: 18 },
+  oddsRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  oddsText: { ...type.caption, fontSize: 12.5, color: '#B8BEC9' },
+  buyRow: { flexDirection: 'row', gap: 10 },
+  buyBtn: { flex: 1, borderRadius: radii.md, overflow: 'hidden' },
+  buyBtnGrad: { paddingVertical: 13, alignItems: 'center', gap: 3 },
+  buyText: { fontFamily: fonts.display, color: '#1A1200', fontSize: 15, letterSpacing: 0.8 },
+  buyPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  buySub: { fontFamily: fonts.bodyBold, color: '#1A1200', fontSize: 12, opacity: 0.85 },
+  forgeHeader: { marginTop: 26, marginBottom: 14 },
+  forgeTitle: {
+    fontFamily: fonts.display,
+    color: palette.text,
+    fontSize: 20,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  sectionHint: { ...type.caption, fontSize: 13, lineHeight: 19, marginBottom: 6 },
+  rates: { fontFamily: fonts.bodyMedium, color: '#7A8494', fontSize: 11 },
+  modeToggle: {
+    flexDirection: 'row',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: 'rgba(16,21,30,0.85)',
+    padding: 3,
+    gap: 3,
     marginBottom: 10,
   },
+  modeSeg: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingVertical: 9,
+    borderRadius: radii.sm,
+  },
+  modeSegActive: { backgroundColor: 'rgba(212,168,75,0.16)' },
+  modeText: { fontFamily: fonts.bodySemi, color: palette.textMuted, fontSize: 13 },
+  modeTextOn: { color: palette.goldBright },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: 'rgba(16,21,30,0.85)',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  search: { flex: 1, color: palette.text, fontFamily: fonts.body, fontSize: 14, paddingVertical: 10 },
+  forgeList: { paddingHorizontal: 4 },
   forgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ffffff14',
+    paddingHorizontal: 10,
     gap: 10,
+    borderRadius: radii.sm,
   },
-  forgeName: { color: palette.text, fontWeight: '700', fontSize: 14 },
-  forgeMeta: { fontSize: 11, marginTop: 2, fontWeight: '600' },
-  forgeCost: { color: palette.goldBright, fontWeight: '800', fontSize: 14 },
-  emptyForge: { color: palette.textMuted, fontSize: 13, paddingVertical: 16 },
-  note: { color: palette.textMuted, marginTop: 24, lineHeight: 20, fontSize: 13 },
+  forgeRowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.07)' },
+  rarityDot: { width: 7, height: 7, borderRadius: 2, transform: [{ rotate: '45deg' }] },
+  forgeName: { color: palette.text, fontFamily: fonts.bodySemi, fontSize: 14 },
+  forgeMeta: { fontFamily: fonts.bodyMedium, fontSize: 11, marginTop: 2, color: palette.textMuted },
+  costBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.35)',
+    backgroundColor: 'rgba(212,168,75,0.08)',
+  },
+  costBadgeGain: {
+    borderColor: 'rgba(61,139,110,0.45)',
+    backgroundColor: 'rgba(61,139,110,0.10)',
+  },
+  forgeCost: { color: palette.goldBright, fontFamily: fonts.bodyBold, fontSize: 13 },
+  emptyForge: { ...type.caption, fontSize: 13, padding: 18 },
+  noteRow: { flexDirection: 'row', gap: 8, marginTop: 22, alignItems: 'flex-start' },
+  note: { ...type.caption, flex: 1, lineHeight: 19 },
 });

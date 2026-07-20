@@ -1,15 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameStore } from '../store/gameStore';
 import { ALL_CARDS } from '../engine/cardDb';
 import { VaultScreenShell } from '../components/VaultScreenShell';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { Panel } from '../components/Panel';
+import { Icon, IconName } from '../components/Icon';
 import { palette } from '../theme/colors';
+import { type, fonts } from '../theme/typography';
 
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const {
     gold,
+    dust,
     wins,
     losses,
     packsOpened,
@@ -22,66 +27,86 @@ export function ProfileScreen() {
   const unique = Object.keys(owned).filter((id) => (owned[id] ?? 0) > 0).length;
 
   const nextGoalText = !milestonesClaimed.includes('unique50')
-    ? `Next: 50 unique (${unique}/50)`
+    ? `50 unique (${unique}/50)`
     : !milestonesClaimed.includes('unique100')
-      ? `Next: 100 unique (${unique}/100)`
-      : 'Claimed milestones';
+      ? `100 unique (${unique}/100)`
+      : 'All claimed';
 
   return (
     <VaultScreenShell bgImage={require('../../assets/ui/bg-home-vault.png')}>
-      <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
-        <Text style={styles.title}>Vault Profile</Text>
-        <Text style={styles.brand}>Rune Vault: Fantasy Card Battle</Text>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.root, { paddingTop: insets.top + 12 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <ScreenHeader kicker="THE VAULT" title="Profile" meta="Rune Vault: Fantasy Card Battle" />
 
-        <View style={styles.card}>
-          <Row label="Gold" value={String(gold)} />
-          <Row label="Wins — Losses" value={`${wins}–${losses}`} />
-          <Row label="Packs opened" value={String(packsOpened)} />
-          <Row label="Collection" value={`${unique} / ${ALL_CARDS.length}`} />
-          <Row label="Active deck" value={`${deck.length} cards`} />
-          <Row label="Story" value={`${storyCleared.length}/9`} />
-          <Row label="Milestone" value={nextGoalText} accent={palette.gold} />
+        <Panel style={styles.card}>
+          <Row icon="gold" label="Gold" value={String(gold)} />
+          <Row icon="dust" label="Dust" value={String(dust)} />
+          <Row icon="trophy" label="Wins — Losses" value={`${wins}–${losses}`} />
+          <Row icon="pack" label="Packs opened" value={String(packsOpened)} />
+          <Row icon="collection" label="Collection" value={`${unique} / ${ALL_CARDS.length}`} />
+          <Row icon="deck" label="Active deck" value={`${deck.length} cards`} />
+          <Row icon="story" label="Story" value={`${storyCleared.length}/9`} />
+          <Row icon="stats" label="Next milestone" value={nextGoalText} accent={palette.goldBright} />
           {lastGoldGain > 0 && (
-            <Row label="Last win" value={`+${lastGoldGain}`} accent={palette.success} />
+            <Row icon="gold" label="Last win" value={`+${lastGoldGain}`} accent="#9EE8C4" last />
           )}
-        </View>
+        </Panel>
 
-        <Text style={styles.note}>
-          Progress saves on this device. Origins set: 185 cards. More sets planned for live seasons.
-        </Text>
-      </View>
+        <View style={styles.noteRow}>
+          <Icon name="shield" size={13} color={palette.goldDim} />
+          <Text style={styles.note}>
+            Progress saves on this device. Origins set: 185 cards. More sets planned for live
+            seasons.
+          </Text>
+        </View>
+      </ScrollView>
     </VaultScreenShell>
   );
 }
 
-function Row({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Row({
+  icon,
+  label,
+  value,
+  accent,
+  last,
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+  accent?: string;
+  last?: boolean;
+}) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.row, !last && styles.rowBorder]}>
+      <View style={styles.rowLeft}>
+        <Icon name={icon} size={14} color={palette.goldDim} />
+        <Text style={styles.label}>{label}</Text>
+      </View>
       <Text style={[styles.value, accent ? { color: accent } : null]}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 20 },
-  title: { color: palette.text, fontSize: 28, fontWeight: '800' },
-  brand: { color: palette.gold, marginBottom: 20, marginTop: 4 },
-  card: {
-    backgroundColor: palette.bgPanel,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 16,
-  },
+  root: { flex: 1, paddingHorizontal: 18, paddingBottom: 24 },
+  card: { paddingHorizontal: 16, paddingVertical: 6 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.border,
+    alignItems: 'center',
+    paddingVertical: 13,
   },
-  label: { color: palette.textMuted },
-  value: { color: palette.text, fontWeight: '800' },
-  note: { color: palette.textMuted, marginTop: 20, lineHeight: 20 },
+  rowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(120,140,170,0.16)',
+  },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  label: { ...type.caption, fontSize: 13.5, color: '#B8BEC9' },
+  value: { fontFamily: fonts.bodyBold, fontSize: 14, color: palette.text },
+  noteRow: { flexDirection: 'row', gap: 8, marginTop: 20, alignItems: 'flex-start', paddingHorizontal: 4 },
+  note: { ...type.caption, flex: 1, lineHeight: 19 },
 });

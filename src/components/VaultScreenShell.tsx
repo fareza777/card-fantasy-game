@@ -18,14 +18,14 @@ type Props = {
 
 /**
  * Reusable vault-tone shell: optional background art + LinearGradient fill + content.
- * Keeps screens visually consistent with Home/Story without duplicating the
- * ImageBackground + LinearGradient boilerplate everywhere.
+ * Default scrim keeps art readable up top and melts into deep vault black at the
+ * bottom so content always sits on a quiet surface.
  */
 export function VaultScreenShell({
   children,
   bgImage,
-  bgOpacity = 0.32,
-  gradientColors = ['#0A0C10EE', '#0C1018CC', '#0A0C10F5'],
+  bgOpacity = 0.35,
+  gradientColors = ['rgba(7,10,15,0.62)', 'rgba(7,10,15,0.85)', 'rgba(7,10,15,0.97)'],
   paddingTop = 0,
   style,
 }: Props) {
@@ -44,7 +44,7 @@ export function VaultScreenShell({
     );
   }
 
-  return <View style={[styles.root, { backgroundColor: palette.bg }]}>{content}</View>;
+  return <View style={[styles.root, { backgroundColor: palette.bgDeep }]}>{content}</View>;
 }
 
 const styles = StyleSheet.create({

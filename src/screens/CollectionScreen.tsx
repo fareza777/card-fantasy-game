@@ -17,8 +17,13 @@ import { ALL_CARDS } from '../engine/cardDb';
 import { CardView } from '../components/CardView';
 import { CardZoomModal } from '../components/CardZoomModal';
 import { VaultScreenShell } from '../components/VaultScreenShell';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { FilterChip } from '../components/FilterChip';
+import { Icon, IconName } from '../components/Icon';
 import { useGameStore } from '../store/gameStore';
 import { palette, factionColors, rarityColors } from '../theme/colors';
+import { type, fonts } from '../theme/typography';
+import { radii } from '../theme/tokens';
 import { CardDef, CardType, Faction, Rarity } from '../types/card';
 import { RootStackParamList } from '../navigation/types';
 
@@ -31,6 +36,15 @@ const rarities: { key: Rarity | 'All'; label: string }[] = [
   { key: 'Rare', label: 'R' },
   { key: 'Legendary', label: 'L' },
 ];
+
+const FACTION_ICONS: Record<string, IconName> = {
+  Dawn: 'dawn',
+  Tide: 'tide',
+  Shade: 'shade',
+  Ember: 'ember',
+  Thorn: 'thorn',
+  Neutral: 'neutral',
+};
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -103,17 +117,27 @@ export function CollectionScreen() {
   return (
     <VaultScreenShell bgImage={require('../../assets/ui/bg-home-vault.png')}>
       <View style={[styles.root, { paddingTop: topPad }]}>
-        <Text style={styles.title}>Collection</Text>
-        <Text style={styles.meta}>
-          {unique}/{ALL_CARDS.length} owned · {ownedCount} copies · grey = locked · hold to zoom
-        </Text>
-        <TextInput
-          placeholder="Search cards..."
-          placeholderTextColor={palette.textMuted}
-          value={q}
-          onChangeText={setQ}
-          style={styles.search}
+        <ScreenHeader
+          kicker="THE VAULT"
+          title="Collection"
+          meta={`${unique}/${ALL_CARDS.length} unique · ${ownedCount} copies · hold a card to inspect`}
         />
+
+        <View style={styles.searchWrap}>
+          <Icon name="search" size={15} color={palette.textMuted} />
+          <TextInput
+            placeholder="Search cards..."
+            placeholderTextColor="#5F6B7E"
+            value={q}
+            onChangeText={setQ}
+            style={styles.search}
+          />
+          {q.length > 0 && (
+            <Pressable onPress={() => setQ('')} hitSlop={8}>
+              <Icon name="close" size={14} color={palette.textMuted} />
+            </Pressable>
+          )}
+        </View>
 
         <ScrollView
           horizontal
@@ -122,24 +146,14 @@ export function CollectionScreen() {
           contentContainerStyle={styles.chipRow}
         >
           {factions.map((item) => (
-            <Pressable
+            <FilterChip
               key={item}
+              label={item}
+              active={faction === item}
               onPress={() => setFaction(item)}
-              style={[
-                styles.chip,
-                faction === item && {
-                  backgroundColor: item === 'All' ? palette.gold : factionColors[item as Faction].main,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.chipText, faction === item && { color: '#111' }]}
-                allowFontScaling={false}
-                numberOfLines={1}
-              >
-                {item}
-              </Text>
-            </Pressable>
+              icon={FACTION_ICONS[item]}
+              accent={item === 'All' ? palette.gold : factionColors[item as Faction].main}
+            />
           ))}
         </ScrollView>
 
@@ -150,56 +164,35 @@ export function CollectionScreen() {
           contentContainerStyle={styles.chipRow}
         >
           {types.map((item) => (
-            <Pressable
+            <FilterChip
               key={item}
+              label={item}
+              active={type === item}
               onPress={() => setType(item)}
-              style={[styles.chipSm, type === item && styles.chipSmActive]}
-            >
-              <Text
-                style={[styles.chipSmText, type === item && styles.chipSmTextActive]}
-                allowFontScaling={false}
-                numberOfLines={1}
-              >
-                {item}
-              </Text>
-            </Pressable>
+            />
           ))}
         </ScrollView>
 
         <View style={styles.rarityRow}>
           <View style={styles.rarityChips}>
             {rarities.map((r) => (
-              <Pressable
+              <FilterChip
                 key={r.key}
+                label={r.label}
+                active={rarity === r.key}
                 onPress={() => setRarity(r.key)}
-                style={[
-                  styles.rarityChip,
-                  rarity === r.key && {
-                    backgroundColor: r.key === 'All' ? palette.gold : rarityColors[r.key as Rarity],
-                    borderColor: r.key === 'All' ? palette.gold : rarityColors[r.key as Rarity],
-                  },
-                ]}
-              >
-                <Text
-                  style={[styles.rarityChipText, rarity === r.key && { color: '#111' }]}
-                  allowFontScaling={false}
-                >
-                  {r.label}
-                </Text>
-              </Pressable>
+                accent={r.key === 'All' ? palette.gold : rarityColors[r.key as Rarity]}
+                style={styles.rarityChip}
+              />
             ))}
           </View>
-          <Pressable
+          <FilterChip
+            label="Owned"
+            icon="check"
+            active={ownedOnly}
             onPress={() => setOwnedOnly((v) => !v)}
-            style={[styles.ownedToggle, ownedOnly && styles.ownedToggleActive]}
-          >
-            <Text
-              style={[styles.ownedToggleText, ownedOnly && styles.ownedToggleTextActive]}
-              numberOfLines={1}
-            >
-              {ownedOnly ? '✓ Owned only' : 'Owned only'}
-            </Text>
-          </Pressable>
+            accent={palette.success}
+          />
         </View>
 
         <FlatList
@@ -207,7 +200,12 @@ export function CollectionScreen() {
           keyExtractor={(c) => c.id}
           numColumns={2}
           contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 72, alignItems: 'center' }}
-          ListEmptyComponent={<Text style={styles.empty}>No cards match these filters.</Text>}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Icon name="cards" size={26} color={palette.goldDim} />
+              <Text style={styles.emptyText}>No cards match these filters.</Text>
+            </View>
+          }
           renderItem={renderItem}
           initialNumToRender={6}
           maxToRenderPerBatch={6}
@@ -222,76 +220,27 @@ export function CollectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 12 },
-  title: {
-    color: palette.text,
-    fontSize: 26,
-    fontWeight: '800',
-    paddingHorizontal: 4,
-    lineHeight: 34,
-    marginBottom: 2,
-    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
-  },
-  meta: {
-    color: palette.textMuted,
-    marginBottom: 8,
-    paddingHorizontal: 4,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  search: {
-    backgroundColor: palette.bgPanel,
-    borderRadius: 10,
+  root: { flex: 1, paddingHorizontal: 14 },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: 'rgba(16,21,30,0.85)',
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: palette.border,
-    color: palette.text,
     paddingHorizontal: 12,
-    paddingVertical: 10,
     marginBottom: 10,
   },
-  chipScroll: { maxHeight: 48, marginBottom: 8, flexGrow: 0 },
-  chipRow: { alignItems: 'center', paddingRight: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    minHeight: 40,
-    borderRadius: 20,
-    backgroundColor: palette.bgPanel,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipText: {
+  search: {
+    flex: 1,
     color: palette.text,
-    fontWeight: '700',
-    fontSize: 13,
-    lineHeight: 18,
-    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+    fontFamily: fonts.body,
+    fontSize: 14,
+    paddingVertical: 11,
   },
-  chipSm: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minHeight: 34,
-    borderRadius: 16,
-    backgroundColor: '#12161ECC',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSmActive: {
-    backgroundColor: palette.gold + '22',
-    borderColor: palette.gold,
-  },
-  chipSmText: {
-    color: palette.textMuted,
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  chipSmTextActive: { color: palette.goldBright },
+  chipScroll: { maxHeight: 44, marginBottom: 8, flexGrow: 0 },
+  chipRow: { alignItems: 'center', paddingRight: 8, gap: 8 },
   rarityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -300,30 +249,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   rarityChips: { flexDirection: 'row', gap: 6 },
-  rarityChip: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bgPanel,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rarityChipText: { color: palette.text, fontWeight: '800', fontSize: 12 },
-  ownedToggle: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bgPanel,
-  },
-  ownedToggleActive: {
-    backgroundColor: palette.success + '33',
-    borderColor: palette.success,
-  },
-  ownedToggleText: { color: palette.textMuted, fontWeight: '700', fontSize: 12 },
-  ownedToggleTextActive: { color: '#9EE8C4' },
-  empty: { color: palette.textMuted, padding: 24, textAlign: 'center' },
+  rarityChip: { paddingHorizontal: 11 },
+  empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
+  emptyText: { ...type.caption, fontSize: 13 },
 });

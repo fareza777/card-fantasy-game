@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  Platform,
   ImageBackground,
   Image,
   Alert,
@@ -27,14 +26,29 @@ import { getStoryArtForChapter } from '../data/storyArt';
 import { getScenario } from '../data/storyScenarios';
 import { getCard } from '../engine/cardDb';
 import { palette, factionColors } from '../theme/colors';
+import { type, fonts } from '../theme/typography';
+import { radii, shadows } from '../theme/tokens';
 import { RootStackParamList } from '../navigation/types';
 import { CardZoomModal } from '../components/CardZoomModal';
+import { VaultButton } from '../components/VaultButton';
+import { Panel } from '../components/Panel';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { Icon, IconName } from '../components/Icon';
 import { CardDef } from '../types/card';
 import { useGameStore, validateDeck } from '../store/gameStore';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 const { width: SCREEN_W } = Dimensions.get('window');
 const PANEL_H = Math.min(280, Math.round(SCREEN_W * 0.72));
+
+const FACTION_ICONS: Record<string, IconName> = {
+  Dawn: 'dawn',
+  Tide: 'tide',
+  Shade: 'shade',
+  Ember: 'ember',
+  Thorn: 'thorn',
+  Neutral: 'neutral',
+};
 
 export function StoryScreen() {
   const nav = useNavigation<Nav>();
@@ -77,28 +91,39 @@ export function StoryScreen() {
       style={styles.root}
       imageStyle={{ opacity: 0.35 }}
     >
-      <LinearGradient colors={['#0A0C10EE', '#0C1018CC', '#0A0C10F2']} style={StyleSheet.absoluteFill} />
+      <LinearGradient
+        colors={['rgba(7,10,15,0.88)', 'rgba(9,12,18,0.82)', 'rgba(7,10,15,0.96)']}
+        style={StyleSheet.absoluteFill}
+      />
       <ScrollView
         contentContainerStyle={{
           paddingTop: insets.top + 16,
           paddingBottom: Math.max(insets.bottom, 24) + 20,
           paddingHorizontal: 18,
         }}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.kicker}>ORIGINS SET · CAMPAIGN</Text>
-        <Text style={styles.title}>Story</Text>
+        <ScreenHeader kicker="ORIGINS SET · CAMPAIGN" title="Story" />
         <Text style={styles.lead}>{ORIGINS_PROLOGUE.split('\n\n')[0]}</Text>
 
         {(['I', 'II', 'III'] as const).map((act) => {
           const actChapters = STORY_CHAPTERS.filter((c) => c.act === act);
           const actClearedCount = actChapters.filter((c) => storyCleared.includes(c.id)).length;
+          const actDone = actClearedCount === actChapters.length;
           return (
             <View key={act} style={styles.actBlock}>
-              <Text style={styles.actLabel}>{STORY_ACTS[act].label}</Text>
-              <Text style={styles.actDesc}>{STORY_ACTS[act].description}</Text>
-              <Text style={styles.actProgress}>
-                {actClearedCount}/{actChapters.length} cleared in this act
-              </Text>
+              <View style={styles.actHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actLabel}>{STORY_ACTS[act].label}</Text>
+                  <Text style={styles.actDesc}>{STORY_ACTS[act].description}</Text>
+                </View>
+                <View style={[styles.actProgressPill, actDone && styles.actProgressPillDone]}>
+                  {actDone && <Icon name="check" size={10} color="#9EE8C4" />}
+                  <Text style={[styles.actProgress, actDone && { color: '#9EE8C4' }]}>
+                    {actClearedCount}/{actChapters.length}
+                  </Text>
+                </View>
+              </View>
               {actChapters.map((c) => {
                 const sc = getScenario(c.id);
                 const cleared = storyCleared.includes(c.id);
@@ -106,19 +131,28 @@ export function StoryScreen() {
                   <Pressable
                     key={c.id}
                     onPress={() => openChapter(c)}
-                    style={({ pressed }) => [styles.chapterRow, pressed && { opacity: 0.85 }]}
+                    style={({ pressed }) => [styles.chapterRow, pressed && { opacity: 0.88 }]}
                   >
+                    <LinearGradient
+                      colors={['rgba(30,39,56,0.9)', 'rgba(16,21,30,0.94)']}
+                      style={StyleSheet.absoluteFill}
+                    />
                     <View style={[styles.chapterAccent, cleared && { backgroundColor: palette.success }]} />
                     <View style={{ flex: 1 }}>
                       <View style={styles.chapterTitleRow}>
                         <Text style={styles.chapterTitle}>{c.title}</Text>
-                        {cleared && <Text style={styles.clearedBadge}>✓ Cleared</Text>}
+                        {cleared && (
+                          <View style={styles.clearedBadge}>
+                            <Icon name="check" size={9} color="#9EE8C4" />
+                            <Text style={styles.clearedBadgeText}>Cleared</Text>
+                          </View>
+                        )}
                       </View>
                       <Text style={styles.chapterSub}>
                         {sc ? `Scenario · ${sc.foeName}` : c.subtitle}
                       </Text>
                     </View>
-                    <Text style={styles.chev}>›</Text>
+                    <Icon name="forward" size={16} color={palette.goldDim} />
                   </Pressable>
                 );
               })}
@@ -128,8 +162,11 @@ export function StoryScreen() {
 
         <Text style={styles.factionHead}>Essence Lore</Text>
         {(Object.keys(FACTION_LORE) as (keyof typeof FACTION_LORE)[]).map((f) => (
-          <View key={f} style={[styles.factionCard, { borderColor: factionColors[f].main + '66' }]}>
-            <Text style={[styles.factionName, { color: factionColors[f].main }]}>{f}</Text>
+          <View key={f} style={[styles.factionCard, { borderColor: factionColors[f].main + '55' }]}>
+            <View style={styles.factionTitleRow}>
+              <Icon name={FACTION_ICONS[f]} size={14} color={factionColors[f].main} />
+              <Text style={[styles.factionName, { color: factionColors[f].main }]}>{f}</Text>
+            </View>
             <Text style={styles.factionBody}>{FACTION_LORE[f]}</Text>
           </View>
         ))}
@@ -210,26 +247,28 @@ function ChapterReader({
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: '#0A0C10' }]}>
+    <View style={[styles.root, { backgroundColor: palette.bgDeep }]}>
       <ScrollView
         contentContainerStyle={{
           paddingTop: insets.top + 12,
           paddingBottom: Math.max(insets.bottom, 20) + 24,
           paddingHorizontal: 18,
         }}
+        showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={retreat} style={styles.back}>
-          <Text style={styles.backText}>{beat > 0 ? '← Previous' : '← Story'}</Text>
+        <Pressable onPress={retreat} style={styles.back} hitSlop={8}>
+          <Icon name="back" size={15} color={palette.gold} />
+          <Text style={styles.backText}>{beat > 0 ? 'Previous' : 'Story'}</Text>
         </Pressable>
 
-        <Text style={styles.actTiny}>{STORY_ACTS[chapter.act].label}</Text>
+        <Text style={type.kicker}>{STORY_ACTS[chapter.act].label}</Text>
         <Text style={styles.readTitle}>{chapter.title}</Text>
         <Text style={styles.readSub}>{chapter.subtitle}</Text>
 
         <View style={styles.panelFrame}>
           <Image source={art} style={styles.panelArt} resizeMode="cover" />
           <LinearGradient
-            colors={['transparent', '#0A0C10EE']}
+            colors={['transparent', 'rgba(7,10,15,0.92)']}
             style={styles.panelFade}
             pointerEvents="none"
           />
@@ -245,32 +284,44 @@ function ChapterReader({
         </View>
 
         {current.kind === 'title' && (
-          <View style={styles.beatBox}>
-            <Text style={styles.beatKicker}>Chapter opens</Text>
+          <Panel style={styles.beatBox}>
+            <Text style={styles.beatKicker}>CHAPTER OPENS</Text>
             <Text style={styles.para}>
-              Tap Continue to walk this chapter scene by scene — like an RPG storyboard, not a scroll of walls of text.
+              Tap Continue to walk this chapter scene by scene — like an RPG storyboard, not a
+              scroll of walls of text.
             </Text>
-          </View>
+          </Panel>
         )}
 
         {current.kind === 'panel' && (
-          <View style={styles.beatBox}>
-            <Text style={styles.beatKicker}>Beat {current.index + 1}</Text>
+          <Panel style={styles.beatBox}>
+            <Text style={styles.beatKicker}>BEAT {current.index + 1}</Text>
             <Text style={styles.para}>{current.text}</Text>
-          </View>
+          </Panel>
         )}
 
         {current.kind === 'epilogue' && (
           <>
             {scenario && (
               <View style={styles.scenarioBox}>
-                <Text style={styles.scenarioLabel}>Scenario battle</Text>
+                <Text style={styles.scenarioLabel}>SCENARIO BATTLE</Text>
                 <Text style={styles.scenarioFoe}>{scenario.foeName}</Text>
                 <Text style={styles.scenarioBrief}>{scenario.briefing}</Text>
-                <Text style={styles.scenarioReward}>
-                  Reward {scenario.rewardGold} gold{cleared ? ' · cleared' : ''}
-                </Text>
-                <Pressable onPress={beginScenario} style={styles.scenarioBtn}>
+                <View style={styles.scenarioRewardRow}>
+                  <Icon name="gold" size={12} color={palette.goldBright} />
+                  <Text style={styles.scenarioReward}>
+                    Reward {scenario.rewardGold} gold{cleared ? ' · cleared' : ''}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={beginScenario}
+                  style={({ pressed }) => [styles.scenarioBtn, pressed && { opacity: 0.9 }]}
+                >
+                  <LinearGradient
+                    colors={['#D8553F', '#A83224']}
+                    style={[StyleSheet.absoluteFill, { borderRadius: radii.md }]}
+                  />
+                  <Icon name="battle" size={15} color="#FFF" />
                   <Text style={styles.scenarioBtnText}>
                     {cleared ? 'Replay Scenario' : 'Begin Scenario'}
                   </Text>
@@ -280,7 +331,7 @@ function ChapterReader({
 
             {!!chapter.unlockHint && (
               <View style={styles.hintBox}>
-                <Text style={styles.hintLabel}>Vault note</Text>
+                <Text style={styles.hintLabel}>VAULT NOTE</Text>
                 <Text style={styles.hintBody}>{chapter.unlockHint}</Text>
               </View>
             )}
@@ -294,6 +345,7 @@ function ChapterReader({
                   delayLongPress={280}
                   style={styles.linkChip}
                 >
+                  <Icon name="cards" size={11} color={palette.goldDim} />
                   <Text style={styles.linkChipText} numberOfLines={1}>
                     {c.name}
                   </Text>
@@ -305,13 +357,14 @@ function ChapterReader({
 
         <View style={styles.storyNav}>
           {!atEnd ? (
-            <Pressable onPress={advance} style={styles.continueBtn}>
-              <Text style={styles.continueText}>Continue ›</Text>
-            </Pressable>
+            <VaultButton label="Continue" icon="forward" onPress={advance} style={styles.continueBtn} />
           ) : (
-            <Pressable onPress={onBack} style={styles.continueBtnGhost}>
-              <Text style={styles.continueTextGhost}>Return to Story</Text>
-            </Pressable>
+            <VaultButton
+              label="Return to Story"
+              variant="secondary"
+              onPress={onBack}
+              style={styles.continueBtn}
+            />
           )}
           <View style={styles.dots}>
             {beats.map((_, i) => (
@@ -325,105 +378,99 @@ function ChapterReader({
   );
 }
 
-const DISPLAY = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  kicker: {
-    color: palette.gold,
-    letterSpacing: 2.5,
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  title: {
-    color: palette.text,
-    fontSize: 32,
-    fontFamily: DISPLAY,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
   lead: {
-    color: palette.textMuted,
-    fontSize: 14,
-    lineHeight: 22,
-    marginBottom: 22,
-    fontFamily: DISPLAY,
+    fontFamily: fonts.displayMedium,
+    color: '#CFC6B2',
+    fontSize: 14.5,
+    lineHeight: 23,
+    marginBottom: 24,
   },
-  actBlock: { marginBottom: 22 },
-  actLabel: { color: palette.goldBright, fontSize: 13, fontWeight: '800', marginBottom: 4 },
-  actDesc: { color: palette.textMuted, fontSize: 12, marginBottom: 4, lineHeight: 17 },
-  actProgress: {
-    color: palette.gold,
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 10,
-    letterSpacing: 0.3,
+  actBlock: { marginBottom: 24 },
+  actHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+  actLabel: { ...type.heading, color: palette.goldBright, fontSize: 15, marginBottom: 3 },
+  actDesc: { ...type.caption, fontSize: 12, lineHeight: 17 },
+  actProgressPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.35)',
+    backgroundColor: 'rgba(212,168,75,0.08)',
   },
+  actProgressPillDone: {
+    borderColor: 'rgba(61,139,110,0.5)',
+    backgroundColor: 'rgba(61,139,110,0.10)',
+  },
+  actProgress: { fontFamily: fonts.bodyBold, color: palette.gold, fontSize: 11 },
   chapterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#121820EE',
-    borderRadius: 12,
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#2A3344',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    borderColor: 'rgba(120,140,170,0.16)',
+    paddingVertical: 13,
+    paddingHorizontal: 13,
     marginBottom: 8,
+    overflow: 'hidden',
+    gap: 12,
   },
-  chapterAccent: {
-    width: 3,
-    height: 28,
-    borderRadius: 2,
-    backgroundColor: palette.gold,
-    marginRight: 12,
-  },
+  chapterAccent: { width: 3, height: 30, borderRadius: 2, backgroundColor: palette.gold },
   chapterTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  chapterTitle: { color: palette.text, fontSize: 15, fontWeight: '800' },
+  chapterTitle: { fontFamily: fonts.display, color: palette.text, fontSize: 15, letterSpacing: 0.3 },
   clearedBadge: {
-    color: palette.success,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(61,139,110,0.45)',
+    backgroundColor: 'rgba(61,139,110,0.10)',
   },
-  chapterSub: { color: palette.textMuted, fontSize: 11, marginTop: 2 },
-  chev: { color: palette.gold, fontSize: 22, marginLeft: 8 },
-  factionHead: {
-    color: palette.text,
-    fontSize: 18,
-    fontWeight: '800',
-    marginTop: 8,
-    marginBottom: 10,
-    fontFamily: DISPLAY,
+  clearedBadgeText: {
+    color: '#9EE8C4',
+    fontSize: 9.5,
+    fontFamily: fonts.bodySemi,
+    letterSpacing: 0.4,
   },
+  chapterSub: { ...type.caption, fontSize: 11, marginTop: 2 },
+  factionHead: { ...type.heading, marginTop: 6, marginBottom: 12 },
   factionCard: {
     borderWidth: 1,
-    borderRadius: 12,
-    backgroundColor: '#10141ACC',
-    padding: 12,
+    borderRadius: radii.md,
+    backgroundColor: 'rgba(16,20,26,0.8)',
+    padding: 13,
     marginBottom: 8,
   },
-  factionName: { fontWeight: '800', fontSize: 13, marginBottom: 4, letterSpacing: 1 },
-  factionBody: { color: palette.textMuted, fontSize: 12, lineHeight: 18 },
-  back: { marginBottom: 10 },
-  backText: { color: palette.gold, fontWeight: '700', fontSize: 14 },
-  actTiny: { color: palette.gold, fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  factionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 },
+  factionName: { fontFamily: fonts.bodyBold, fontSize: 12.5, letterSpacing: 1.6, textTransform: 'uppercase' },
+  factionBody: { ...type.caption, fontSize: 12, lineHeight: 18 },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 12, alignSelf: 'flex-start' },
+  backText: { fontFamily: fonts.bodySemi, color: palette.gold, fontSize: 14 },
   readTitle: {
+    fontFamily: fonts.displayBlack,
     color: palette.text,
     fontSize: 26,
-    fontFamily: DISPLAY,
-    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginTop: 6,
     marginBottom: 4,
   },
-  readSub: { color: palette.textMuted, fontSize: 13, marginBottom: 12, fontStyle: 'italic' },
+  readSub: { ...type.caption, fontSize: 13, marginBottom: 14, fontStyle: 'italic' },
   panelFrame: {
     height: PANEL_H,
-    borderRadius: 14,
+    borderRadius: radii.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#3A3428',
+    borderColor: 'rgba(212,168,75,0.25)',
     marginBottom: 14,
     backgroundColor: '#080A0E',
+    ...shadows.cardLift,
   },
   panelArt: { width: '100%', height: '100%' },
   panelFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 72 },
@@ -431,119 +478,96 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: '#0A0C10CC',
-    borderRadius: 8,
+    backgroundColor: 'rgba(7,10,15,0.8)',
+    borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: palette.gold + '66',
-    paddingHorizontal: 8,
+    borderColor: 'rgba(212,168,75,0.4)',
+    paddingHorizontal: 9,
     paddingVertical: 4,
   },
   panelBadgeText: {
     color: palette.gold,
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  beatBox: {
-    backgroundColor: '#12161CEE',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2A3344',
-    padding: 14,
-    marginBottom: 12,
-  },
-  beatKicker: {
-    color: palette.gold,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
+  beatBox: { padding: 15, marginBottom: 12 },
+  beatKicker: { ...type.kicker, fontSize: 10, marginBottom: 8 },
   para: {
+    fontFamily: fonts.body,
     color: '#E8E0D4',
     fontSize: 15,
     lineHeight: 24,
-    fontFamily: DISPLAY,
   },
   hintBox: {
-    backgroundColor: '#1A160C',
-    borderColor: palette.gold + '66',
+    backgroundColor: 'rgba(26,22,12,0.9)',
+    borderColor: 'rgba(212,168,75,0.4)',
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: radii.md,
+    padding: 13,
     marginVertical: 8,
   },
-  hintLabel: { color: palette.gold, fontSize: 11, fontWeight: '800', marginBottom: 4 },
-  hintBody: { color: palette.textMuted, fontSize: 12, lineHeight: 17 },
+  hintLabel: { ...type.kicker, fontSize: 10, marginBottom: 5 },
+  hintBody: { ...type.caption, fontSize: 12, lineHeight: 17 },
   scenarioBox: {
     marginVertical: 8,
-    padding: 14,
-    borderRadius: 12,
+    padding: 15,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: '#C44536AA',
-    backgroundColor: '#1A1014EE',
+    borderColor: 'rgba(196,69,54,0.55)',
+    backgroundColor: 'rgba(26,16,20,0.92)',
   },
   scenarioLabel: {
     color: '#E8A090',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 6,
+    fontSize: 10.5,
+    fontFamily: fonts.bodySemi,
+    letterSpacing: 1.6,
+    marginBottom: 7,
   },
-  scenarioFoe: { color: palette.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
-  scenarioBrief: { color: palette.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 8 },
-  scenarioReward: { color: palette.gold, fontSize: 12, marginBottom: 12 },
-  scenarioBtn: {
-    backgroundColor: '#C44536',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  scenarioBtnText: { color: '#FFF', fontWeight: '800', fontSize: 15 },
-  linkedHead: {
+  scenarioFoe: {
+    fontFamily: fonts.display,
     color: palette.text,
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 10,
-    marginBottom: 8,
+    fontSize: 19,
+    letterSpacing: 0.5,
+    marginBottom: 7,
   },
+  scenarioBrief: { ...type.caption, fontSize: 13, lineHeight: 19, marginBottom: 10 },
+  scenarioRewardRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
+  scenarioReward: { fontFamily: fonts.bodySemi, color: palette.goldBright, fontSize: 12.5 },
+  scenarioBtn: {
+    flexDirection: 'row',
+    borderRadius: radii.md,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    overflow: 'hidden',
+  },
+  scenarioBtnText: {
+    color: '#FFF',
+    fontFamily: fonts.display,
+    fontSize: 15,
+    letterSpacing: 0.8,
+  },
+  linkedHead: { ...type.heading, fontSize: 14, marginTop: 12, marginBottom: 10 },
   linkedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   linkChip: {
-    backgroundColor: '#1A2030',
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(26,32,48,0.9)',
+    borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: '#3A4458',
+    borderColor: 'rgba(120,140,170,0.25)',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
     maxWidth: '48%',
   },
-  linkChipText: { color: palette.text, fontSize: 12, fontWeight: '600' },
-  storyNav: { marginTop: 16, alignItems: 'center', gap: 12 },
-  continueBtn: {
-    backgroundColor: palette.gold,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    minWidth: '70%',
-    alignItems: 'center',
-  },
-  continueText: { color: '#1A1200', fontWeight: '900', fontSize: 16 },
-  continueBtnGhost: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    minWidth: '70%',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.gold + '88',
-  },
-  continueTextGhost: { color: palette.gold, fontWeight: '800', fontSize: 15 },
+  linkChipText: { fontFamily: fonts.bodyMedium, color: palette.text, fontSize: 12 },
+  storyNav: { marginTop: 18, alignItems: 'center', gap: 14 },
+  continueBtn: { minWidth: '72%', alignSelf: 'center' },
   dots: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center' },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#3A4250',
-  },
-  dotHot: { backgroundColor: palette.gold, width: 16 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#3A4250' },
+  dotHot: { backgroundColor: palette.gold, width: 18 },
 });

@@ -1,11 +1,13 @@
 import React from 'react';
-import { Text, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCard, totalCost } from '../engine/cardDb';
 import { CardView } from '../components/CardView';
 import { VaultScreenShell } from '../components/VaultScreenShell';
+import { Icon } from '../components/Icon';
 import { palette, factionColors, rarityColors } from '../theme/colors';
+import { type, fonts } from '../theme/typography';
 import { RootStackParamList } from '../navigation/types';
 import { useGameStore } from '../store/gameStore';
 
@@ -25,26 +27,43 @@ export function CardDetailScreen() {
           styles.content,
           { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 },
         ]}
+        showsVerticalScrollIndicator={false}
       >
         <CardView card={card} width={cardW} showcase />
+
         <Text style={[styles.name, { color: f.main }]}>{card.name}</Text>
         <Text style={styles.line}>
           {card.type} · {card.faction} ·{' '}
           <Text style={{ color: rarityColors[card.rarity] }}>{card.rarity}</Text>
         </Text>
-        <Text style={styles.owned}>Owned: {owned}</Text>
-        {card.type !== 'Domain' && (
-          <Text style={styles.meta}>Essence cost total: {totalCost(card.cost)}</Text>
-        )}
-        {card.type === 'Unit' && (
-          <Text style={styles.meta}>
-            Power / Resolve: {card.power}/{card.resolve}
-          </Text>
-        )}
-        {!!card.keywords.length && (
-          <Text style={styles.keywords}>{card.keywords.join(' · ')}</Text>
-        )}
-        <Text style={styles.rules}>{card.text || 'No additional rules text.'}</Text>
+
+        <View style={styles.pillRow}>
+          <View style={styles.pill}>
+            <Icon name="collection" size={12} color={palette.gold} />
+            <Text style={styles.pillText}>Owned ×{owned}</Text>
+          </View>
+          {card.type !== 'Domain' && (
+            <View style={styles.pill}>
+              <Icon name="dust" size={12} color={palette.gold} />
+              <Text style={styles.pillText}>Cost {totalCost(card.cost)}</Text>
+            </View>
+          )}
+          {card.type === 'Unit' && (
+            <View style={styles.pill}>
+              <Icon name="battle" size={12} color={palette.gold} />
+              <Text style={styles.pillText}>
+                {card.power}/{card.resolve}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {!!card.keywords.length && <Text style={styles.keywords}>{card.keywords.join(' · ')}</Text>}
+
+        <View style={styles.ruleBox}>
+          <Text style={styles.rules}>{card.text || 'No additional rules text.'}</Text>
+        </View>
+
         <Text style={styles.flavor}>“{card.flavor}”</Text>
       </ScrollView>
     </VaultScreenShell>
@@ -53,11 +72,61 @@ export function CardDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 24, alignItems: 'center' },
-  name: { fontSize: 26, fontWeight: '800', marginTop: 16, textAlign: 'center' },
-  line: { color: palette.textMuted, marginTop: 6, fontSize: 14 },
-  owned: { color: palette.gold, marginTop: 10, fontWeight: '700' },
-  meta: { color: palette.textMuted, marginTop: 6 },
-  keywords: { color: palette.goldBright, marginTop: 12, fontWeight: '800' },
-  rules: { color: palette.text, marginTop: 12, lineHeight: 22, textAlign: 'center' },
-  flavor: { color: palette.textMuted, fontStyle: 'italic', marginTop: 16, textAlign: 'center' },
+  name: {
+    fontFamily: fonts.displayBlack,
+    fontSize: 24,
+    letterSpacing: 0.8,
+    marginTop: 18,
+    textAlign: 'center',
+  },
+  line: {
+    ...type.caption,
+    fontSize: 13,
+    marginTop: 6,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  pillRow: { flexDirection: 'row', gap: 8, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.3)',
+    backgroundColor: 'rgba(212,168,75,0.07)',
+  },
+  pillText: { fontFamily: fonts.bodySemi, fontSize: 12, color: palette.goldBright },
+  keywords: {
+    fontFamily: fonts.bodySemi,
+    color: palette.goldBright,
+    marginTop: 14,
+    fontSize: 13,
+    letterSpacing: 0.6,
+  },
+  ruleBox: {
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(120,140,170,0.18)',
+  },
+  rules: {
+    ...type.body,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  flavor: {
+    fontFamily: fonts.displayMedium,
+    color: palette.textMuted,
+    fontStyle: 'italic',
+    marginTop: 16,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+    maxWidth: 300,
+  },
 });

@@ -2,18 +2,44 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Alert, TextInput, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ALL_CARDS, getCard, totalCost } from '../engine/cardDb';
 import { CardView } from '../components/CardView';
 import { VaultScreenShell } from '../components/VaultScreenShell';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { FilterChip } from '../components/FilterChip';
+import { Panel } from '../components/Panel';
+import { VaultButton } from '../components/VaultButton';
+import { Icon, IconName } from '../components/Icon';
 import { useGameStore, validateDeck } from '../store/gameStore';
 import { buildStarterDeck } from '../engine/packs';
 import { palette, factionColors } from '../theme/colors';
+import { type, fonts } from '../theme/typography';
+import { radii } from '../theme/tokens';
 import { CardType, Faction } from '../types/card';
 
 const CURVE_BUCKETS = ['0', '1', '2', '3', '4', '5', '6', '7+'];
 const CURVE_FACTIONS: Faction[] = ['Dawn', 'Tide', 'Shade', 'Ember', 'Thorn', 'Neutral'];
 const FILTER_FACTIONS: (Faction | 'All')[] = ['All', 'Dawn', 'Tide', 'Shade', 'Ember', 'Thorn', 'Neutral'];
 const FILTER_TYPES: (CardType | 'All')[] = ['All', 'Unit', 'Sigil', 'Canticle', 'Domain', 'Bond', 'Relic'];
+
+const FACTION_ICONS: Record<string, IconName> = {
+  Dawn: 'dawn',
+  Tide: 'tide',
+  Shade: 'shade',
+  Ember: 'ember',
+  Thorn: 'thorn',
+  Neutral: 'neutral',
+};
+
+function SectionTitle({ label, right }: { label: string; right?: string }) {
+  return (
+    <View style={styles.sectionRow}>
+      <Text style={styles.sectionLabel}>{label}</Text>
+      {right ? <Text style={styles.sectionRight}>{right}</Text> : null}
+    </View>
+  );
+}
 
 export function DeckScreen() {
   const insets = useSafeAreaInsets();
@@ -139,254 +165,236 @@ export function DeckScreen() {
   return (
     <VaultScreenShell bgImage={require('../../assets/ui/bg-home-vault.png')}>
       <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Deck Builder</Text>
-          <Text style={[styles.meta, { color: valid ? palette.success : palette.danger }]}>
-            {draft.length}/40 · {valid ? 'Legal' : 'Incomplete'}
-          </Text>
-        </View>
-        <View style={styles.headerBtns}>
-          <Pressable onPress={resetStarter} style={styles.reset}>
-            <Text style={styles.resetText}>Starter</Text>
-          </Pressable>
-          <Pressable onPress={save} style={styles.save}>
-            <Text style={styles.saveText}>Save</Text>
-          </Pressable>
-        </View>
-      </View>
+        <ScreenHeader
+          kicker="ARMORY"
+          title="Deck Builder"
+          right={
+            <View style={styles.headerBtns}>
+              <VaultButton label="Starter" variant="secondary" small onPress={resetStarter} />
+              <VaultButton label="Save" icon="check" small onPress={save} />
+            </View>
+          }
+        />
 
-      <Pressable onPress={doSwapSlot} style={styles.slotBtn}>
-        <Text style={styles.slotBtnText}>
-          Slot {activeDeckSlot} active · tap for Slot {activeDeckSlot === 'A' ? 'B' : 'A'}
-        </Text>
-      </Pressable>
+        <View style={styles.statusRow}>
+          <View style={[styles.statusPill, valid ? styles.statusOk : styles.statusBad]}>
+            <Icon name={valid ? 'check' : 'warning'} size={12} color={valid ? '#9EE8C4' : '#E8A090'} />
+            <Text style={[styles.statusText, { color: valid ? '#9EE8C4' : '#E8A090' }]}>
+              {draft.length}/40 · {valid ? 'Legal' : 'Incomplete'}
+            </Text>
+          </View>
+          <View style={styles.slotToggle}>
+            {(['A', 'B'] as const).map((slot) => {
+              const active = activeDeckSlot === slot;
+              return (
+                <Pressable
+                  key={slot}
+                  onPress={() => !active && doSwapSlot()}
+                  style={[styles.slotSeg, active && styles.slotSegActive]}
+                >
+                  <Text style={[styles.slotSegText, active && styles.slotSegTextActive]}>
+                    Deck {slot}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
-      <View style={styles.curveBox}>
-        <Text style={styles.section}>Essence curve (non-Domain)</Text>
-        <View style={styles.curveRow}>
-          {curve.map((n, i) => (
-            <View key={i} style={styles.curveCol}>
-              <View style={styles.curveBarTrack}>
-                <View
-                  style={[
-                    styles.curveBar,
-                    { height: Math.max(2, (n / curveMax) * 56) },
-                  ]}
-                />
+        <Panel style={styles.curveBox}>
+          <SectionTitle label="Essence curve" right="non-Domain" />
+          <View style={styles.curveRow}>
+            {curve.map((n, i) => (
+              <View key={i} style={styles.curveCol}>
+                <View style={styles.curveBarTrack}>
+                  <LinearGradient
+                    colors={['#F0C75E', '#B8902F']}
+                    style={[styles.curveBar, { height: Math.max(2, (n / curveMax) * 56) }]}
+                  />
+                </View>
+                <Text style={styles.curveCount}>{n}</Text>
+                <Text style={styles.curveLabel}>{CURVE_BUCKETS[i]}</Text>
               </View>
-              <Text style={styles.curveCount}>{n}</Text>
-              <Text style={styles.curveLabel}>{CURVE_BUCKETS[i]}</Text>
-            </View>
-          ))}
-        </View>
-        <View style={styles.factionChipRow}>
-          {CURVE_FACTIONS.filter((f) => factionCounts[f] > 0).map((f) => (
-            <View key={f} style={[styles.factionChip, { borderColor: factionColors[f].main }]}>
-              <Text style={[styles.factionChipText, { color: factionColors[f].main }]}>
-                {f} {factionCounts[f]}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
+            ))}
+          </View>
+          <View style={styles.factionChipRow}>
+            {CURVE_FACTIONS.filter((f) => factionCounts[f] > 0).map((f) => (
+              <View key={f} style={[styles.factionChip, { borderColor: factionColors[f].main + '66' }]}>
+                <Icon name={FACTION_ICONS[f]} size={11} color={factionColors[f].main} />
+                <Text style={[styles.factionChipText, { color: factionColors[f].main }]}>
+                  {f} {factionCounts[f]}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Panel>
 
-      <Text style={styles.section}>In deck (tap to remove)</Text>
-      <FlatList
-        horizontal
-        data={Object.keys(counts)}
-        keyExtractor={(id) => id}
-        style={{ maxHeight: 168, marginBottom: 8 }}
-        ListEmptyComponent={<Text style={styles.empty}>Deck empty — add cards below</Text>}
-        renderItem={({ item }) => (
-          <CardView
-            card={getCard(item)}
-            width={100}
-            compact
-            count={counts[item]}
-            onPress={() => remove(item)}
+        <SectionTitle label="In deck" right="tap to remove" />
+        <FlatList
+          horizontal
+          data={Object.keys(counts)}
+          keyExtractor={(id) => id}
+          style={styles.deckStrip}
+          ListEmptyComponent={
+            <View style={styles.emptyInline}>
+              <Icon name="deck" size={18} color={palette.goldDim} />
+              <Text style={styles.empty}>Deck empty — add cards below</Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <CardView
+              card={getCard(item)}
+              width={100}
+              compact
+              count={counts[item]}
+              onPress={() => remove(item)}
+            />
+          )}
+        />
+
+        <SectionTitle label="Owned" right="tap to add" />
+        <View style={styles.searchWrap}>
+          <Icon name="search" size={15} color={palette.textMuted} />
+          <TextInput
+            placeholder="Search owned cards..."
+            placeholderTextColor="#5F6B7E"
+            value={q}
+            onChangeText={setQ}
+            style={styles.search}
           />
-        )}
-      />
-
-      <Text style={styles.section}>Owned (tap to add)</Text>
-      <TextInput
-        placeholder="Search owned cards..."
-        placeholderTextColor={palette.textMuted}
-        value={q}
-        onChangeText={setQ}
-        style={styles.search}
-      />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipScroll}
-        contentContainerStyle={styles.chipRow}
-      >
-        {FILTER_TYPES.map((item) => (
-          <Pressable
-            key={item}
-            onPress={() => setTypeFilter(item)}
-            style={[styles.chipSm, typeFilter === item && styles.chipSmActive]}
-          >
-            <Text
-              style={[styles.chipSmText, typeFilter === item && styles.chipSmTextActive]}
-              numberOfLines={1}
-            >
-              {item}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipScroll}
-        contentContainerStyle={styles.chipRow}
-      >
-        {FILTER_FACTIONS.map((item) => (
-          <Pressable
-            key={item}
-            onPress={() => setFactionFilter(item)}
-            style={[
-              styles.chip,
-              factionFilter === item && {
-                backgroundColor: item === 'All' ? palette.gold : factionColors[item as Faction].main,
-              },
-            ]}
-          >
-            <Text
-              style={[styles.chipText, factionFilter === item && { color: '#111' }]}
-              numberOfLines={1}
-            >
-              {item}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <FlatList
-        data={ownedList}
-        keyExtractor={(c) => c.id}
-        numColumns={2}
-        contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}
-        ListEmptyComponent={<Text style={styles.empty}>No owned cards match these filters.</Text>}
-        renderItem={({ item }) => (
-          <CardView card={item} width={150} count={owned[item.id]} onPress={() => add(item.id)} />
-        )}
-      />
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipRow}
+        >
+          {FILTER_TYPES.map((item) => (
+            <FilterChip
+              key={item}
+              label={item}
+              active={typeFilter === item}
+              onPress={() => setTypeFilter(item)}
+            />
+          ))}
+        </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipRow}
+        >
+          {FILTER_FACTIONS.map((item) => (
+            <FilterChip
+              key={item}
+              label={item}
+              active={factionFilter === item}
+              onPress={() => setFactionFilter(item)}
+              icon={FACTION_ICONS[item]}
+              accent={item === 'All' ? palette.gold : factionColors[item as Faction].main}
+            />
+          ))}
+        </ScrollView>
+        <FlatList
+          data={ownedList}
+          keyExtractor={(c) => c.id}
+          numColumns={2}
+          contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}
+          ListEmptyComponent={<Text style={styles.empty}>No owned cards match these filters.</Text>}
+          renderItem={({ item }) => (
+            <CardView card={item} width={150} count={owned[item.id]} onPress={() => add(item.id)} />
+          )}
+        />
       </View>
     </VaultScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 12 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: { color: palette.text, fontSize: 26, fontWeight: '800' },
-  meta: { fontWeight: '700', marginTop: 2 },
+  root: { flex: 1, paddingHorizontal: 14 },
   headerBtns: { flexDirection: 'row', gap: 8 },
-  reset: {
-    backgroundColor: palette.bgPanel,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  resetText: { color: palette.text, fontWeight: '700' },
-  save: {
-    backgroundColor: palette.gold,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  saveText: { color: '#1A1200', fontWeight: '800' },
-  slotBtn: {
-    backgroundColor: palette.bgPanel,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: palette.gold + '66',
-    paddingVertical: 10,
+  statusRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 10,
   },
-  slotBtnText: { color: palette.goldBright, fontWeight: '800', fontSize: 13 },
-  section: { color: palette.gold, fontWeight: '700', marginVertical: 8, paddingHorizontal: 4 },
-  empty: { color: palette.textMuted, padding: 12 },
-  search: {
-    backgroundColor: palette.bgPanel,
-    borderRadius: 10,
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 11,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+  },
+  statusOk: { borderColor: 'rgba(61,139,110,0.5)', backgroundColor: 'rgba(61,139,110,0.12)' },
+  statusBad: { borderColor: 'rgba(196,69,54,0.5)', backgroundColor: 'rgba(196,69,54,0.10)' },
+  statusText: { fontFamily: fonts.bodySemi, fontSize: 12 },
+  slotToggle: {
+    flexDirection: 'row',
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: palette.border,
-    color: palette.text,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: 'rgba(16,21,30,0.85)',
+    padding: 3,
+    gap: 3,
+  },
+  slotSeg: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: radii.sm },
+  slotSegActive: { backgroundColor: 'rgba(212,168,75,0.18)' },
+  slotSegText: { fontFamily: fonts.bodySemi, fontSize: 12, color: palette.textMuted },
+  slotSegTextActive: { color: palette.goldBright },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: 10,
     marginBottom: 8,
+    paddingHorizontal: 2,
   },
-  chipScroll: { maxHeight: 44, marginBottom: 8, flexGrow: 0 },
-  chipRow: { alignItems: 'center', paddingRight: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minHeight: 36,
-    borderRadius: 18,
-    backgroundColor: palette.bgPanel,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipText: { color: palette.text, fontWeight: '700', fontSize: 12 },
-  chipSm: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    minHeight: 32,
-    borderRadius: 16,
-    backgroundColor: '#12161ECC',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSmActive: { backgroundColor: palette.gold + '22', borderColor: palette.gold },
-  chipSmText: { color: palette.textMuted, fontWeight: '700', fontSize: 11 },
-  chipSmTextActive: { color: palette.goldBright },
-  curveBox: {
-    backgroundColor: palette.bgPanel,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 12,
-    marginBottom: 4,
-  },
+  sectionLabel: { ...type.kicker, fontSize: 10.5 },
+  sectionRight: { ...type.caption, fontSize: 11 },
+  curveBox: { padding: 14, marginBottom: 2 },
   curveRow: { flexDirection: 'row', justifyContent: 'space-between' },
   curveCol: { alignItems: 'center', flex: 1 },
-  curveBarTrack: {
-    height: 56,
-    width: 14,
-    justifyContent: 'flex-end',
-  },
-  curveBar: {
-    width: 14,
-    borderRadius: 3,
-    backgroundColor: palette.gold,
-  },
-  curveCount: { color: palette.text, fontSize: 10, fontWeight: '800', marginTop: 4 },
-  curveLabel: { color: palette.textMuted, fontSize: 9, marginTop: 1 },
-  factionChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  curveBarTrack: { height: 56, width: 14, justifyContent: 'flex-end' },
+  curveBar: { width: 14, borderRadius: 3 },
+  curveCount: { color: palette.text, fontSize: 10, fontFamily: fonts.bodyBold, marginTop: 4 },
+  curveLabel: { color: palette.textMuted, fontSize: 9, fontFamily: fonts.bodyMedium, marginTop: 1 },
+  factionChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
   factionChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
     borderWidth: 1,
-    backgroundColor: '#00000033',
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
-  factionChipText: { fontSize: 11, fontWeight: '700' },
+  factionChipText: { fontSize: 11, fontFamily: fonts.bodySemi },
+  deckStrip: { maxHeight: 168, marginBottom: 4 },
+  emptyInline: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
+  empty: { ...type.caption, padding: 12 },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    backgroundColor: 'rgba(16,21,30,0.85)',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  search: {
+    flex: 1,
+    color: palette.text,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    paddingVertical: 10,
+  },
+  chipScroll: { maxHeight: 44, marginBottom: 8, flexGrow: 0 },
+  chipRow: { alignItems: 'center', paddingRight: 8, gap: 8 },
 });

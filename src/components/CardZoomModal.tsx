@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Pressable,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
@@ -12,7 +11,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CardDef } from '../types/card';
 import { CardView, cardZoomWidth } from './CardView';
+import { VaultButton } from './VaultButton';
 import { palette, factionColors, rarityColors } from '../theme/colors';
+import { type, fonts } from '../theme/typography';
 
 type Props = {
   card: CardDef | null;
@@ -59,35 +60,32 @@ export function CardZoomModal({
             bounces={false}
           >
             <CardView card={card} width={w} showcase />
-            <Text style={[styles.rarity, { color: rarityColors[card.rarity] }]}>{card.rarity}</Text>
+            <Text style={[styles.rarity, { color: rarityColors[card.rarity] }]}>
+              {card.rarity}
+            </Text>
           </ScrollView>
 
           <View style={styles.actions}>
             {!!onPrimary && !!primaryLabel && (
-              <Pressable
+              <VaultButton
+                label={primaryLabel}
                 onPress={() => {
                   onPrimary();
                   onClose();
                 }}
-                style={styles.primary}
-              >
-                <Text style={styles.primaryText}>{primaryLabel}</Text>
-              </Pressable>
+              />
             )}
             {!!onSecondary && !!secondaryLabel && (
-              <Pressable
+              <VaultButton
+                label={secondaryLabel}
+                variant="secondary"
                 onPress={() => {
                   onSecondary();
                   onClose();
                 }}
-                style={styles.secondary}
-              >
-                <Text style={styles.secondaryText}>{secondaryLabel}</Text>
-              </Pressable>
+              />
             )}
-            <Pressable onPress={onClose} style={styles.close}>
-              <Text style={styles.closeText}>Close</Text>
-            </Pressable>
+            <VaultButton label="Close" variant="ghost" onPress={onClose} />
           </View>
         </LinearGradient>
       </View>
@@ -106,10 +104,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   kicker: {
+    ...type.kicker,
     textAlign: 'center',
-    fontWeight: '800',
-    letterSpacing: 2,
-    fontSize: 12,
     marginBottom: 10,
   },
   scroll: {
@@ -118,33 +114,13 @@ const styles = StyleSheet.create({
   },
   rarity: {
     marginTop: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
-    fontSize: 13,
+    fontFamily: fonts.bodyBold,
+    letterSpacing: 2,
+    fontSize: 12,
+    textTransform: 'uppercase',
   },
   actions: {
     gap: 8,
     marginTop: 8,
   },
-  primary: {
-    backgroundColor: palette.gold,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryText: { color: '#1A1200', fontWeight: '900', fontSize: 16 },
-  secondary: {
-    backgroundColor: palette.bgPanel,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.gold,
-  },
-  secondaryText: { color: palette.goldBright, fontWeight: '800', fontSize: 15 },
-  close: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  closeText: { color: palette.textMuted, fontWeight: '700', fontSize: 14 },
 });

@@ -2,13 +2,16 @@ import { Faction, Rarity } from '../types/card';
 
 export const palette = {
   bg: '#0B0E14',
+  bgDeep: '#070A0F',
   bgElevated: '#141A24',
   bgPanel: '#1A2230',
   border: '#2A3548',
+  borderGold: '#4A3B1E',
   text: '#F2E8D5',
   textMuted: '#9AA3B5',
   gold: '#D4A84B',
   goldBright: '#F0C75E',
+  goldDim: '#8A6E35',
   danger: '#C44536',
   success: '#3D8B6E',
   white: '#FFFFFF',

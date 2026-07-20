@@ -2,38 +2,31 @@ import React from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, Platform } from 'react-native';
+import { View, Platform, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MainTabParamList, RootStackParamList } from './types';
 import { palette } from '../theme/colors';
+import { fonts } from '../theme/typography';
+import { shadows } from '../theme/tokens';
+import { Icon, IconName } from '../components/Icon';
 import { ScreenErrorBoundary } from '../components/ScreenErrorBoundary';
 import { useGameStore } from '../store/gameStore';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-function TabLabel({ label, focused }: { label: string; focused: boolean }) {
+function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   return (
-    <Text
-      numberOfLines={1}
-      allowFontScaling={false}
-      style={{
-        color: focused ? palette.gold : palette.textMuted,
-        fontSize: 10,
-        fontWeight: '800',
-        letterSpacing: 0.3,
-        textAlign: 'center',
-        minWidth: 52,
-      }}
-    >
-      {label}
-    </Text>
+    <View style={styles.tabIconWrap}>
+      <Icon name={name} size={21} color={focused ? palette.goldBright : '#5F6B7E'} />
+      <View style={[styles.tabDot, !focused && { opacity: 0 }]} />
+    </View>
   );
 }
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
-  const tabPad = Math.max(insets.bottom, Platform.OS === 'android' ? 28 : 10);
+  const tabPad = Math.max(insets.bottom, Platform.OS === 'android' ? 20 : 8);
 
   return (
     <Tab.Navigator
@@ -41,42 +34,66 @@ function MainTabs() {
         headerShown: false,
         lazy: true,
         tabBarStyle: {
-          backgroundColor: palette.bgElevated,
-          borderTopColor: palette.border,
-          height: 54 + tabPad,
+          backgroundColor: palette.bgDeep,
+          borderTopColor: 'rgba(212,168,75,0.14)',
+          borderTopWidth: 1,
+          height: 60 + tabPad,
           paddingBottom: tabPad,
-          paddingTop: 10,
+          paddingTop: 8,
+          ...shadows.deep,
         },
         tabBarActiveTintColor: palette.gold,
-        tabBarInactiveTintColor: palette.textMuted,
-        tabBarShowLabel: false,
+        tabBarInactiveTintColor: '#5F6B7E',
+        tabBarShowLabel: true,
+        tabBarLabelStyle: {
+          fontFamily: fonts.bodySemi,
+          fontSize: 9.5,
+          letterSpacing: 1.4,
+          textTransform: 'uppercase',
+          marginTop: 2,
+        },
         tabBarItemStyle: { paddingHorizontal: 0 },
       }}
     >
       <Tab.Screen
         name="HomeTab"
         getComponent={() => require('../screens/HomeScreen').HomeScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabLabel label="✦ HOME" focused={focused} /> }}
+        options={{
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
+        }}
       />
       <Tab.Screen
         name="Collection"
         getComponent={() => require('../screens/CollectionScreen').CollectionScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabLabel label="◈ CARDS" focused={focused} /> }}
+        options={{
+          tabBarLabel: 'Cards',
+          tabBarIcon: ({ focused }) => <TabIcon name="collection" focused={focused} />,
+        }}
       />
       <Tab.Screen
         name="Deck"
         getComponent={() => require('../screens/DeckScreen').DeckScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabLabel label="☰ DECK" focused={focused} /> }}
+        options={{
+          tabBarLabel: 'Deck',
+          tabBarIcon: ({ focused }) => <TabIcon name="deck" focused={focused} />,
+        }}
       />
       <Tab.Screen
         name="Shop"
         getComponent={() => require('../screens/ShopScreen').ShopScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabLabel label="◆ SHOP" focused={focused} /> }}
+        options={{
+          tabBarLabel: 'Shop',
+          tabBarIcon: ({ focused }) => <TabIcon name="shop" focused={focused} />,
+        }}
       />
       <Tab.Screen
         name="Profile"
         getComponent={() => require('../screens/ProfileScreen').ProfileScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabLabel label="◎ YOU" focused={focused} /> }}
+        options={{
+          tabBarLabel: 'You',
+          tabBarIcon: ({ focused }) => <TabIcon name="profile" focused={focused} />,
+        }}
       />
     </Tab.Navigator>
   );
@@ -86,8 +103,8 @@ const navTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: palette.bg,
-    card: palette.bgElevated,
+    background: palette.bgDeep,
+    card: palette.bgDeep,
     text: palette.text,
     border: palette.border,
     primary: palette.gold,
@@ -117,10 +134,15 @@ export function RootNavigator() {
       <Stack.Navigator
         initialRouteName="MainTabs"
         screenOptions={{
-          headerStyle: { backgroundColor: palette.bgElevated },
+          headerStyle: { backgroundColor: palette.bgDeep },
           headerTintColor: palette.gold,
-          headerTitleStyle: { fontWeight: '800' },
-          contentStyle: { backgroundColor: palette.bg },
+          headerTitleStyle: {
+            fontFamily: fonts.display,
+            fontSize: 17,
+            color: palette.text,
+          },
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: palette.bgDeep },
         }}
       >
         <Stack.Screen name="MainTabs" component={MainTabsSafe} options={{ headerShown: false }} />
@@ -158,3 +180,18 @@ export function RootNavigator() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  tabIconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 28,
+  },
+  tabDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.gold,
+    marginTop: 3,
+  },
+});

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Image, Dimensions, Platform } from '
 import { LinearGradient } from 'expo-linear-gradient';
 import { CardDef, EssenceCost } from '../types/card';
 import { factionColors, rarityColors, palette } from '../theme/colors';
+import { fonts } from '../theme/typography';
 import { totalCost } from '../engine/cardDb';
 import { getCardArt } from '../data/cardArt';
 
@@ -356,15 +357,15 @@ const styles = StyleSheet.create({
   name: {
     flex: 1,
     color: palette.text,
-    fontWeight: '800',
+    fontFamily: fonts.display,
     marginRight: 4,
-    letterSpacing: 0.15,
+    letterSpacing: 0.3,
     lineHeight: 15,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   pips: { flexDirection: 'row', flexWrap: 'wrap', maxWidth: 58, justifyContent: 'flex-end' },
   pip: { margin: 1, borderWidth: 1, borderColor: '#0008' },
-  domainTag: { color: palette.gold, fontSize: 8, fontWeight: '800', letterSpacing: 0.6 },
+  domainTag: { color: palette.gold, fontSize: 8, fontFamily: fonts.bodyBold, letterSpacing: 0.6 },
   artFrame: { overflow: 'hidden', backgroundColor: '#05070A' },
   artFallback: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   artVignette: { position: 'absolute', left: 0, right: 0, bottom: 0, top: '55%' },
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
     left: 8,
     color: '#fff',
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bodySemi,
     opacity: 0.9,
   },
   rarityGem: {
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
-  compactType: { color: palette.textMuted, fontSize: 8, fontWeight: '700' },
+  compactType: { color: palette.textMuted, fontSize: 8, fontFamily: fonts.bodySemi, letterSpacing: 0.4, textTransform: 'uppercase' },
   typeLine: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -410,14 +411,14 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ffffff18',
     backgroundColor: '#0E1218',
   },
-  typeText: { flex: 1, color: palette.textMuted, fontSize: 9, fontWeight: '700' },
-  rarityText: { fontSize: 9, fontWeight: '800', flexShrink: 0 },
+  typeText: { flex: 1, color: palette.textMuted, fontSize: 9, fontFamily: fonts.bodySemi, letterSpacing: 0.5, textTransform: 'uppercase' },
+  rarityText: { fontSize: 9, fontFamily: fonts.bodyBold, letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 0 },
   textBox: { flexGrow: 1, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 10, minHeight: 88 },
   textBoxLg: { paddingTop: 8, paddingBottom: 14, paddingHorizontal: 10, minHeight: 110 },
   textBoxStats: { paddingBottom: 40 },
-  keywords: { color: palette.goldBright, fontSize: 9, fontWeight: '800', marginBottom: 3 },
-  rules: { color: palette.text, fontSize: 10, lineHeight: 14 },
-  flavor: { color: palette.textMuted, fontSize: 8, fontStyle: 'italic', marginTop: 6 },
+  keywords: { color: palette.goldBright, fontSize: 9, fontFamily: fonts.bodySemi, letterSpacing: 0.4, marginBottom: 3 },
+  rules: { color: palette.text, fontSize: 10, lineHeight: 14, fontFamily: fonts.body },
+  flavor: { color: palette.textMuted, fontSize: 8, fontStyle: 'italic', fontFamily: fonts.body, marginTop: 6 },
   stats: {
     position: 'absolute',
     right: 7,
@@ -431,7 +432,7 @@ const styles = StyleSheet.create({
   },
   statsLg: { paddingHorizontal: 11, paddingVertical: 5 },
   statsCompact: { right: 5, bottom: 5, paddingHorizontal: 5, paddingVertical: 2 },
-  statText: { color: palette.goldBright, fontWeight: '900', fontSize: 12 },
+  statText: { color: palette.goldBright, fontFamily: fonts.bodyBold, fontSize: 12 },
   countBadge: {
     position: 'absolute',
     left: 7,
@@ -441,7 +442,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  countText: { color: '#1A1200', fontWeight: '900', fontSize: 11 },
+  countText: { color: '#1A1200', fontFamily: fonts.bodyBold, fontSize: 11 },
   unownedWrap: { opacity: 0.72 },
   unownedText: { color: '#8A919C' },
   unownedVeil: {
@@ -459,7 +460,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  lockedText: { color: '#A8B0BC', fontWeight: '800', fontSize: 10, letterSpacing: 0.4 },
+  lockedText: { color: '#A8B0BC', fontFamily: fonts.bodySemi, fontSize: 10, letterSpacing: 0.4 },
   compactCostPill: {
     position: 'absolute',
     right: 5,
@@ -471,7 +472,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 2,
   },
-  compactCost: { color: palette.text, fontWeight: '800', fontSize: 11 },
+  compactCost: { color: palette.text, fontFamily: fonts.bodyBold, fontSize: 11 },
 
   // Board (Claude-style)
   boardWrap: {
@@ -510,7 +511,8 @@ const styles = StyleSheet.create({
     flex: 1,
     color: palette.text,
     fontSize: 8,
-    fontWeight: '800',
+    fontFamily: fonts.display,
+    letterSpacing: 0.2,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   boardStats: {
@@ -524,7 +526,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  boardStatText: { color: palette.goldBright, fontSize: 10, fontWeight: '900' },
+  boardStatText: { color: palette.goldBright, fontSize: 10, fontFamily: fonts.bodyBold },
 });
 
 export function cardZoomWidth() {

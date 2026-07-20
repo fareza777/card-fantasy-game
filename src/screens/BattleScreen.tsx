@@ -20,12 +20,14 @@ import { CardView } from '../components/CardView';
 import { CardZoomModal } from '../components/CardZoomModal';
 import { useGameStore } from '../store/gameStore';
 import { palette, factionColors } from '../theme/colors';
+import { fonts, type } from '../theme/typography';
+import { radii, shadows } from '../theme/tokens';
+import { Icon } from '../components/Icon';
+import { VaultButton } from '../components/VaultButton';
 import { CardDef, FieldPermanent, FieldUnit } from '../types/card';
 import { STEP_LABELS, canPlayType } from '../types/battleFlow';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const DISPLAY = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
-const UI = Platform.select({ ios: 'Avenir Next', android: 'sans-serif-medium', default: 'System' });
 
 const PHASE_TRACK: { key: string; label: string; match: (p: string) => boolean }[] = [
   { key: 'ready', label: 'Ready', match: (p) => p === 'untap' || p === 'upkeep' },
@@ -61,7 +63,7 @@ function PhaseTrack({ phase }: { phase: string }) {
 function LifeStat({ life, foe }: { life: number; foe?: boolean }) {
   return (
     <View style={[styles.lifeStat, foe && styles.lifeStatFoe]}>
-      <Text style={[styles.lifeStatLabel, foe && { color: '#C89088' }]}>LIFE</Text>
+      <Icon name="heart" size={10} color={foe ? '#C89088' : palette.gold} />
       <Text style={[styles.lifeStatNum, foe && { color: '#FFB4A8' }]}>{life}</Text>
     </View>
   );
@@ -414,13 +416,12 @@ export function BattleScreen() {
       if (mode === 'ownUnit') return 'Tap one of YOUR Units to aim the spell';
       if (mode === 'enemyUnit') return 'Tap an ENEMY Unit to aim the spell';
       return 'Choose a target for the spell';
-      return 'Tap an enemy Unit — or Face (Pierce)';
     }
     if (defending) {
       return 'Block: tap attacker, then YOUR Unit (tap again to clear) — or Confirm';
     }
     if (!myTurn && !canAct) return 'Enemy turn…';
-    if (battle.phase === 'main1') return 'Domains · tap ✦≋◆▲※ to Exhaust for Essence · then Play';
+    if (battle.phase === 'main1') return 'Domains · tap a Domain to Exhaust for Essence · then Play';
     if (battle.phase === 'combat_attackers') return 'Tap Units to declare attackers — then Confirm Attack';
     if (battle.phase === 'combat_blockers') return 'Review enemy blocks — Confirm for combat damage';
     if (battle.phase === 'main2') return 'Play more, then End Turn';
@@ -431,9 +432,7 @@ export function BattleScreen() {
     return (
       <View style={[styles.root, { paddingTop: insets.top + 16, paddingBottom: bottomPad }]}>
         <Text style={styles.muted}>No active duel.</Text>
-        <Pressable onPress={() => nav.goBack()} style={styles.actionBtn}>
-          <Text style={styles.actionBtnText}>Back</Text>
-        </Pressable>
+        <VaultButton label="Back" variant="secondary" onPress={() => nav.goBack()} />
       </View>
     );
   }
@@ -590,7 +589,7 @@ export function BattleScreen() {
             </Text>
           </Animated.View>
           <Pressable onPress={() => setLogOpen(true)} style={styles.logIconBtn} hitSlop={8}>
-            <Text style={styles.logIconText}>☰</Text>
+            <Icon name="stats" size={15} color={palette.gold} />
           </Pressable>
           {!over && (
             <Pressable
@@ -626,9 +625,7 @@ export function BattleScreen() {
                 <Text style={styles.tutorialStep}>2 Play Unit</Text>
                 <Text style={styles.tutorialStep}>3 Enter Combat</Text>
               </View>
-              <Pressable onPress={() => setTutorialSeen()} style={styles.tutorialBtn}>
-                <Text style={styles.tutorialBtnText}>Got it</Text>
-              </Pressable>
+              <VaultButton label="Got it" small onPress={() => setTutorialSeen()} />
             </View>
           </View>
         )}
@@ -873,6 +870,10 @@ export function BattleScreen() {
               ]}
               disabled={battle.selectedHandIndex == null || !canAct || !!battle.pendingTarget}
             >
+              <LinearGradient
+                colors={['rgba(212,168,75,0.24)', 'rgba(212,168,75,0.10)']}
+                style={styles.dockBtnFill}
+              />
               <Text style={styles.dockBtnTextGold} numberOfLines={1}>
                 Play
               </Text>
@@ -887,7 +888,14 @@ export function BattleScreen() {
                 pressed && { transform: [{ scale: 0.97 }] },
               ]}
             >
-              <Text style={styles.dockBtnTextLight} numberOfLines={1}>
+              <LinearGradient
+                colors={inCombat ? ['#D8553F', '#8A2418'] : ['#F0C75E', '#C09A3E']}
+                style={styles.dockBtnFill}
+              />
+              <Text
+                style={[styles.dockBtnTextLight, !inCombat && { color: '#1A1200' }]}
+                numberOfLines={1}
+              >
                 {clashFx ? 'Resolving…' : primaryLabel}
               </Text>
             </Pressable>
@@ -928,9 +936,13 @@ export function BattleScreen() {
                   })
                 )}
               </ScrollView>
-              <Pressable onPress={() => setAshwell(null)} style={styles.logCloseBtn}>
-                <Text style={styles.logCloseText}>Close</Text>
-              </Pressable>
+              <VaultButton
+                label="Close"
+                variant="secondary"
+                small
+                onPress={() => setAshwell(null)}
+                style={styles.modalBtn}
+              />
             </Pressable>
           </Pressable>
         </Modal>
@@ -947,9 +959,13 @@ export function BattleScreen() {
                   </Text>
                 ))}
               </ScrollView>
-              <Pressable onPress={() => setLogOpen(false)} style={styles.logCloseBtn}>
-                <Text style={styles.logCloseText}>Close</Text>
-              </Pressable>
+              <VaultButton
+                label="Close"
+                variant="secondary"
+                small
+                onPress={() => setLogOpen(false)}
+                style={styles.modalBtn}
+              />
             </Pressable>
           </Pressable>
         </Modal>
@@ -965,6 +981,11 @@ export function BattleScreen() {
               }
               style={styles.cinemaCard}
             >
+              <Icon
+                name={battle.winner === 'player' ? 'trophy' : 'skull'}
+                size={30}
+                color={battle.winner === 'player' ? palette.goldBright : '#E8A090'}
+              />
               <Text
                 style={[
                   styles.cinemaTitle,
@@ -977,7 +998,10 @@ export function BattleScreen() {
                 {battle.winner === 'player' ? `Victory · +${lastGoldGain} gold` : 'The Vault records this loss.'}
               </Text>
               <View style={styles.cinemaActions}>
-                <Pressable
+                <VaultButton
+                  label="Rematch"
+                  variant="secondary"
+                  icon="refresh"
                   onPress={() => {
                     const ok = rematchBattle();
                     if (!ok) {
@@ -992,13 +1016,14 @@ export function BattleScreen() {
                     setZoomCard(null);
                     setZoomHandIndex(null);
                   }}
-                  style={styles.cinemaBtnGhost}
-                >
-                  <Text style={styles.cinemaBtnGhostText}>Rematch</Text>
-                </Pressable>
-                <Pressable onPress={() => nav.goBack()} style={styles.cinemaBtn}>
-                  <Text style={styles.cinemaBtnText}>Leave</Text>
-                </Pressable>
+                  style={styles.cinemaAction}
+                />
+                <VaultButton
+                  label="Leave"
+                  icon="forward"
+                  onPress={() => nav.goBack()}
+                  style={styles.cinemaAction}
+                />
               </View>
             </LinearGradient>
           </View>
@@ -1082,11 +1107,11 @@ export function BattleScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0C0E12' },
+  root: { flex: 1, backgroundColor: palette.bgDeep },
   bgImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, width: '100%', height: '100%' },
   bgFill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   safe: { flex: 1 },
-  muted: { color: palette.textMuted, textAlign: 'center', marginTop: 40, fontFamily: UI },
+  muted: { ...type.caption, textAlign: 'center', marginTop: 40, marginBottom: 16 },
   discardFx: {
     position: 'absolute',
     left: SCREEN_W / 2 - 35,
@@ -1104,51 +1129,36 @@ const styles = StyleSheet.create({
   foeName: {
     color: palette.text,
     fontSize: 17,
-    fontFamily: DISPLAY,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontFamily: fonts.display,
+    letterSpacing: 0.4,
   },
   youLabel: {
     color: palette.text,
     fontSize: 15,
-    fontFamily: DISPLAY,
-    fontWeight: '700',
+    fontFamily: fonts.display,
+    letterSpacing: 0.3,
   },
-  headerSub: {
-    color: palette.textMuted,
-    fontSize: 12,
-    fontFamily: UI,
-    marginTop: 2,
-    fontVariant: ['tabular-nums'],
-  },
+  headerSub: { ...type.caption, fontSize: 11.5, marginTop: 2 },
 
   lifeStat: {
     minWidth: 56,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: radii.md,
     borderWidth: 1.5,
-    borderColor: palette.gold + 'AA',
-    backgroundColor: '#1A160CCC',
+    borderColor: 'rgba(212,168,75,0.55)',
+    backgroundColor: 'rgba(26,22,12,0.85)',
     alignItems: 'center',
+    gap: 2,
   },
   lifeStatFoe: {
-    borderColor: '#A05050AA',
-    backgroundColor: '#1A0C10CC',
-  },
-  lifeStatLabel: {
-    color: palette.gold,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    fontFamily: UI,
+    borderColor: 'rgba(196,69,54,0.55)',
+    backgroundColor: 'rgba(26,12,16,0.85)',
   },
   lifeStatNum: {
     color: palette.goldBright,
     fontSize: 20,
-    fontWeight: '800',
-    fontFamily: DISPLAY,
-    fontVariant: ['tabular-nums'],
+    fontFamily: fonts.displayBlack,
     marginTop: 1,
   },
   ghostSlot: {
@@ -1164,7 +1174,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderWidth: 2,
     borderColor: '#C44536',
-    borderRadius: 8,
+    borderRadius: radii.sm,
     backgroundColor: '#C4453622',
   },
   clashOverlay: {
@@ -1181,28 +1191,21 @@ const styles = StyleSheet.create({
   clashText: {
     color: '#FFE8C8',
     fontSize: 42,
-    fontFamily: DISPLAY,
-    fontWeight: '800',
+    fontFamily: fonts.displayBlack,
     letterSpacing: 6,
     textShadowColor: '#C44536',
     textShadowRadius: 12,
   },
-  clashSub: {
-    color: '#E0C090',
-    fontSize: 13,
-    fontFamily: UI,
-    marginTop: 6,
-    letterSpacing: 1,
-  },
+  clashSub: { ...type.caption, color: '#E0C090', marginTop: 6, letterSpacing: 1 },
 
   phasePill: {
     borderWidth: 1.5,
-    borderRadius: 20,
+    borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#1A1210CC',
+    backgroundColor: 'rgba(20,16,12,0.85)',
   },
-  phasePillText: { fontSize: 12, fontWeight: '700', fontFamily: UI, letterSpacing: 0.4 },
+  phasePillText: { fontSize: 11.5, fontFamily: fonts.bodySemi, letterSpacing: 0.6 },
 
   phaseTrack: {
     flexDirection: 'row',
@@ -1215,30 +1218,28 @@ const styles = StyleSheet.create({
   phaseStep: {
     paddingHorizontal: 7,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: 'transparent',
   },
   phaseStepActive: {
-    borderColor: palette.gold,
-    backgroundColor: '#1A160CCC',
+    borderColor: 'rgba(212,168,75,0.6)',
+    backgroundColor: 'rgba(212,168,75,0.12)',
   },
   phaseStepText: {
-    color: '#5A6170',
-    fontSize: 10,
-    fontWeight: '600',
-    fontFamily: UI,
-    letterSpacing: 0.2,
+    color: '#5F6B7E',
+    fontSize: 9.5,
+    fontFamily: fonts.bodySemi,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
-  phaseStepTextActive: { color: palette.text },
+  phaseStepTextActive: { color: palette.goldBright },
   phaseRail: { width: 8, height: 1, backgroundColor: '#2A303C' },
-  phaseRailHot: { backgroundColor: palette.gold + '66' },
+  phaseRailHot: { backgroundColor: 'rgba(212,168,75,0.4)' },
 
   hint: {
+    ...type.caption,
     textAlign: 'center',
-    color: palette.textMuted,
-    fontSize: 11,
-    fontFamily: UI,
     fontStyle: 'italic',
     paddingHorizontal: 16,
     marginBottom: 4,
@@ -1282,9 +1283,8 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -3 }],
   },
   emptyField: {
-    color: '#FFFFFF33',
-    fontSize: 11,
-    fontFamily: UI,
+    ...type.caption,
+    color: 'rgba(255,255,255,0.22)',
     paddingHorizontal: 12,
     paddingVertical: 20,
   },
@@ -1297,37 +1297,27 @@ const styles = StyleSheet.create({
   statPill: {
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 36,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    minWidth: 38,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,170,0.2)',
+    backgroundColor: 'rgba(10,13,18,0.55)',
   },
   statPillValue: {
     color: '#D8DEE8',
     fontSize: 13,
-    fontWeight: '800',
-    fontFamily: UI,
+    fontFamily: fonts.bodyBold,
   },
   statPillLabel: {
     color: '#8A93A3',
-    fontSize: 9,
-    fontWeight: '600',
-    fontFamily: UI,
+    fontSize: 8.5,
+    fontFamily: fonts.bodySemi,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
     marginTop: 1,
   },
-  sidePile: { alignItems: 'center', width: 48, justifyContent: 'center' },
-  sidePileBox: {
-    minWidth: 42,
-    paddingHorizontal: 6,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#4A5568AA',
-    backgroundColor: '#1A2230CC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sidePileValue: { color: '#E8ECF4', fontSize: 12, fontWeight: '800', fontFamily: UI },
-  sidePileLabel: { color: '#9AA3B5', fontSize: 9, marginTop: 3, fontFamily: UI, fontWeight: '600' },
 
   permStrip: {
     paddingLeft: 6,
@@ -1335,14 +1325,12 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     maxHeight: 78,
   },
-  domainBlock: { marginTop: 2, paddingLeft: 8 },
   domainCaption: {
-    color: '#9AA3B5',
+    ...type.caption,
     fontSize: 9,
-    fontFamily: UI,
-    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
     marginBottom: 2,
-    letterSpacing: 0.2,
   },
   domainRow: {
     flexDirection: 'row',
@@ -1352,30 +1340,20 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     paddingVertical: 2,
   },
-  domainEmpty: { color: '#5A6170', fontSize: 9, fontFamily: UI },
+  domainEmpty: { ...type.caption, fontSize: 10 },
   domainTile: {
-    borderRadius: 6,
+    borderRadius: radii.sm,
     borderWidth: 1,
     overflow: 'hidden',
-    backgroundColor: '#121820AA',
+    backgroundColor: 'rgba(10,13,18,0.6)',
   },
   permCardWrap: {
-    borderRadius: 6,
+    borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: '#6B5A3A88',
+    borderColor: 'rgba(107,90,58,0.5)',
     overflow: 'hidden',
-    backgroundColor: '#1A160CAA',
+    backgroundColor: 'rgba(26,22,12,0.6)',
   },
-  domainChip: {
-    minWidth: 36,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  domainChipSym: { fontSize: 12, fontWeight: '800' },
   exhausted: { opacity: 0.4 },
 
   divider: {
@@ -1387,65 +1365,62 @@ const styles = StyleSheet.create({
   turnBadge: {
     color: palette.gold,
     fontSize: 9,
-    fontWeight: '700',
-    fontFamily: UI,
-    letterSpacing: 1,
-    backgroundColor: 'transparent',
+    fontFamily: fonts.bodySemi,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    backgroundColor: 'rgba(10,13,18,0.85)',
     paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.25)',
+    overflow: 'hidden',
   },
 
   logIconBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: '#3A4252',
+    borderColor: 'rgba(212,168,75,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#121820AA',
+    backgroundColor: 'rgba(16,21,30,0.7)',
     marginLeft: 4,
   },
-  logIconText: { color: palette.gold, fontSize: 14, fontWeight: '800' },
   concedeBtn: {
     marginLeft: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: '#5A3038',
-    backgroundColor: '#1A1014AA',
+    borderColor: 'rgba(196,69,54,0.4)',
+    backgroundColor: 'rgba(26,16,20,0.7)',
   },
-  concedeText: { color: '#E8A090', fontSize: 10, fontWeight: '800', fontFamily: UI },
+  concedeText: { color: '#E8A090', fontSize: 10, fontFamily: fonts.bodySemi, letterSpacing: 0.4 },
   logModalBg: {
     flex: 1,
-    backgroundColor: '#00000088',
+    backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'flex-end',
   },
   logModalSheet: {
     maxHeight: '55%',
-    backgroundColor: '#121820',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    backgroundColor: '#10141C',
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
     borderWidth: 1,
-    borderColor: '#2A3344',
-    padding: 16,
+    borderColor: 'rgba(212,168,75,0.2)',
+    padding: 18,
   },
   logModalScroll: { maxHeight: 280, marginVertical: 10 },
   logTitle: {
     color: palette.gold,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 15,
+    fontFamily: fonts.display,
     letterSpacing: 1,
   },
-  logLine: { color: '#9AA3B5', fontSize: 12, fontFamily: UI, marginBottom: 6, lineHeight: 16 },
-  logCloseBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: palette.gold,
-  },
-  logCloseText: { color: '#1A1200', fontWeight: '900' },
+  logLine: { ...type.caption, fontSize: 12.5, marginBottom: 6, lineHeight: 17 },
+  modalBtn: { alignSelf: 'center', paddingHorizontal: 30 },
 
   dock: {
     flexDirection: 'row',
@@ -1458,9 +1433,9 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     zIndex: 30,
     elevation: 12,
-    backgroundColor: '#0A0C12F2',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#3A425266',
+    backgroundColor: 'rgba(8,10,14,0.96)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(212,168,75,0.18)',
   },
   dockLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   dockActions: {
@@ -1472,57 +1447,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     maxWidth: '100%',
   },
-  ghostBtn: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#3A4252',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: 96,
-    minHeight: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ghostText: { color: palette.textMuted, fontSize: 12, fontWeight: '700', fontFamily: UI },
-  playChip: {
-    borderRadius: 12,
-    backgroundColor: '#1A2230',
-    borderWidth: 1,
-    borderColor: palette.gold + '66',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: 96,
-    minHeight: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playChipText: { color: palette.goldBright, fontWeight: '800', fontSize: 12, fontFamily: UI },
-  actionBtn: {
-    borderRadius: 12,
-    backgroundColor: '#2A1A14',
-    borderWidth: 1.5,
-    borderColor: '#C44536',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: 96,
-    minHeight: 42,
-    maxWidth: 148,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionBtnCombat: {
-    backgroundColor: '#3A1814',
-    borderColor: '#E85D3B',
-  },
-  actionBtnText: {
-    color: '#F5E6DC',
-    fontSize: 12,
-    fontWeight: '800',
-    fontFamily: UI,
-    letterSpacing: 0.2,
-  },
   dockBtnGhost: {
-    borderRadius: 12,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: '#3A4252',
     paddingHorizontal: 12,
@@ -1533,60 +1459,67 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dockBtnPlay: {
-    borderRadius: 12,
-    backgroundColor: '#1A2230',
-    borderWidth: 1.5,
-    borderColor: palette.gold + '88',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.55)',
     paddingHorizontal: 12,
     paddingVertical: 10,
     minWidth: 96,
     minHeight: 42,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   dockBtnPrimary: {
-    borderRadius: 12,
-    backgroundColor: '#2A1A14',
-    borderWidth: 1.5,
-    borderColor: '#C44536',
+    borderRadius: radii.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    minWidth: 96,
+    minWidth: 104,
     minHeight: 42,
-    maxWidth: 148,
+    maxWidth: 152,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    ...shadows.cardLift,
   },
-  dockBtnCombat: {
-    backgroundColor: '#3A1814',
-    borderColor: '#E85D3B',
+  dockBtnCombat: {},
+  dockBtnFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: radii.md,
   },
-  dockBtnTextMuted: { color: palette.textMuted, fontSize: 12, fontWeight: '700', fontFamily: UI },
-  dockBtnTextGold: { color: palette.goldBright, fontSize: 12, fontWeight: '800', fontFamily: UI },
-  dockBtnTextLight: { color: '#F5E6DC', fontSize: 12, fontWeight: '800', fontFamily: UI },
-  ashwellSub: {
-    color: palette.textMuted,
-    fontSize: 11,
-    fontFamily: UI,
-    marginTop: 4,
-    marginBottom: 4,
-    fontStyle: 'italic',
+  dockBtnTextMuted: { color: palette.textMuted, fontSize: 12, fontFamily: fonts.bodySemi },
+  dockBtnTextGold: {
+    color: palette.goldBright,
+    fontSize: 12.5,
+    fontFamily: fonts.display,
+    letterSpacing: 0.8,
   },
+  dockBtnTextLight: {
+    color: '#F5E6DC',
+    fontSize: 12.5,
+    fontFamily: fonts.display,
+    letterSpacing: 0.8,
+  },
+  ashwellSub: { ...type.caption, marginTop: 4, marginBottom: 4, fontStyle: 'italic' },
   ashwellRow: {
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#2A3344',
   },
-  ashwellRowText: { color: palette.text, fontSize: 13, fontFamily: UI },
+  ashwellRowText: { color: palette.text, fontSize: 13, fontFamily: fonts.body },
   disabled: { opacity: 0.35 },
 
   targetBanner: {
     marginHorizontal: 12,
     marginTop: 6,
-    borderRadius: 12,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: palette.gold,
-    backgroundColor: '#1A160CEE',
+    backgroundColor: 'rgba(26,22,12,0.94)',
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -1594,31 +1527,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  targetBannerText: { color: palette.goldBright, fontWeight: '800', fontSize: 12, flex: 1 },
+  targetBannerText: { color: palette.goldBright, fontFamily: fonts.bodySemi, fontSize: 12.5, flex: 1 },
   targetBannerActions: { flexDirection: 'row', gap: 6 },
   targetFaceBtn: {
     backgroundColor: '#C44536',
-    borderRadius: 8,
+    borderRadius: radii.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  targetFaceText: { color: '#fff', fontWeight: '800', fontSize: 11 },
+  targetFaceText: { color: '#fff', fontFamily: fonts.bodyBold, fontSize: 11 },
   targetCancelBtn: {
     borderWidth: 1,
     borderColor: '#5A6170',
-    borderRadius: 8,
+    borderRadius: radii.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  targetCancelText: { color: palette.textMuted, fontWeight: '700', fontSize: 11 },
+  targetCancelText: { color: palette.textMuted, fontFamily: fonts.bodySemi, fontSize: 11 },
 
   responseBanner: {
     marginHorizontal: 12,
     marginTop: 6,
-    borderRadius: 12,
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: '#3B8FD9AA',
-    backgroundColor: '#0C1A28EE',
+    borderColor: 'rgba(59,143,217,0.5)',
+    backgroundColor: 'rgba(12,26,40,0.94)',
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -1626,14 +1559,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  responseBannerText: { color: '#A8D4F5', fontWeight: '800', fontSize: 12, flex: 1 },
+  responseBannerText: { color: '#A8D4F5', fontFamily: fonts.bodySemi, fontSize: 12.5, flex: 1 },
   responsePassBtn: {
     backgroundColor: '#3B8FD9',
-    borderRadius: 8,
+    borderRadius: radii.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  responsePassText: { color: '#0A1420', fontWeight: '800', fontSize: 11 },
+  responsePassText: { color: '#0A1420', fontFamily: fonts.bodyBold, fontSize: 11 },
 
   tutorialOverlay: {
     position: 'absolute',
@@ -1644,46 +1577,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tutorialCard: {
-    backgroundColor: '#0F1420F0',
-    borderRadius: 14,
+    backgroundColor: 'rgba(15,20,32,0.96)',
+    borderRadius: radii.lg,
     borderWidth: 1.5,
     borderColor: palette.gold,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
     maxWidth: 360,
+    ...shadows.deep,
   },
-  tutorialTitle: {
-    color: palette.goldBright,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
+  tutorialTitle: { ...type.kicker, marginBottom: 8 },
   tutorialSteps: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 10,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   tutorialStep: {
     color: palette.text,
-    fontSize: 11,
-    fontWeight: '700',
-    fontFamily: UI,
+    fontSize: 11.5,
+    fontFamily: fonts.bodySemi,
   },
-  tutorialBtn: {
-    backgroundColor: palette.gold,
-    borderRadius: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-  },
-  tutorialBtnText: { color: '#1A1200', fontWeight: '800', fontSize: 12 },
 
   cinemaBg: {
     flex: 1,
-    backgroundColor: '#000000CC',
+    backgroundColor: 'rgba(0,0,0,0.82)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -1691,47 +1611,30 @@ const styles = StyleSheet.create({
   cinemaCard: {
     width: '100%',
     maxWidth: 340,
-    borderRadius: 20,
+    borderRadius: radii.xl,
     borderWidth: 1.5,
-    borderColor: palette.gold + '88',
+    borderColor: 'rgba(212,168,75,0.45)',
     paddingVertical: 32,
     paddingHorizontal: 24,
     alignItems: 'center',
+    ...shadows.deep,
   },
   cinemaTitle: {
-    fontSize: 38,
-    fontFamily: DISPLAY,
-    fontWeight: '800',
+    fontSize: 34,
+    fontFamily: fonts.displayBlack,
     letterSpacing: 3,
-    marginBottom: 12,
+    marginTop: 12,
+    marginBottom: 10,
   },
   cinemaGold: {
     color: palette.text,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontFamily: fonts.bodySemi,
     marginBottom: 24,
     textAlign: 'center',
   },
   cinemaActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  cinemaBtn: {
-    backgroundColor: palette.gold,
-    borderRadius: 12,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    minWidth: 120,
-    alignItems: 'center',
-  },
-  cinemaBtnText: { color: '#1A1200', fontWeight: '900', fontSize: 16 },
-  cinemaBtnGhost: {
-    borderRadius: 12,
-    paddingHorizontal: 22,
-    paddingVertical: 14,
-    minWidth: 110,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: palette.gold + '88',
-  },
-  cinemaBtnGhostText: { color: palette.gold, fontWeight: '800', fontSize: 15 },
+  cinemaAction: { minWidth: 118 },
 
   handFan: {
     flexDirection: 'row',
@@ -1742,7 +1645,9 @@ const styles = StyleSheet.create({
     height: 128,
     overflow: 'hidden',
     zIndex: 10,
-    backgroundColor: '#080A0E',
+    backgroundColor: palette.bgDeep,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(212,168,75,0.14)',
   },
   handCardWrap: {
     shadowColor: '#000',

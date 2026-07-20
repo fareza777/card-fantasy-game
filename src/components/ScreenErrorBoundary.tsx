@@ -1,6 +1,9 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { palette } from '../theme/colors';
+import { fonts, type } from '../theme/typography';
+import { VaultButton } from './VaultButton';
+import { Icon } from './Icon';
 
 type Props = { children: ReactNode; onReset?: () => void };
 type State = { error: Error | null };
@@ -21,17 +24,19 @@ export class ScreenErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <View style={styles.box}>
+          <View style={styles.iconWrap}>
+            <Icon name="warning" size={22} color={palette.gold} />
+          </View>
           <Text style={styles.title}>Something went wrong</Text>
           <Text style={styles.msg}>{this.state.error.message}</Text>
-          <Pressable
-            style={styles.btn}
+          <VaultButton
+            label="Try again"
+            icon="refresh"
             onPress={() => {
               this.setState({ error: null });
               this.props.onReset?.();
             }}
-          >
-            <Text style={styles.btnText}>Try again</Text>
-          </Pressable>
+          />
         </View>
       );
     }
@@ -40,14 +45,30 @@ export class ScreenErrorBoundary extends Component<Props, State> {
 }
 
 const styles = StyleSheet.create({
-  box: { flex: 1, backgroundColor: palette.bg, justifyContent: 'center', padding: 24 },
-  title: { color: palette.goldBright, fontSize: 20, fontWeight: '900', marginBottom: 8 },
-  msg: { color: palette.textMuted, fontSize: 13, marginBottom: 20 },
-  btn: {
-    backgroundColor: palette.gold,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+  box: {
+    flex: 1,
+    backgroundColor: palette.bgDeep,
+    justifyContent: 'center',
+    padding: 24,
+    gap: 4,
   },
-  btnText: { color: '#1A1200', fontWeight: '900', fontSize: 15 },
+  iconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.35)',
+    backgroundColor: 'rgba(212,168,75,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  title: {
+    color: palette.goldBright,
+    fontSize: 20,
+    fontFamily: fonts.display,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  msg: { ...type.caption, fontSize: 13, marginBottom: 20 },
 });

@@ -1,6 +1,18 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import {
+  Cinzel_500Medium,
+  Cinzel_700Bold,
+  Cinzel_900Black,
+} from '@expo-google-fonts/cinzel';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -36,6 +48,21 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, EBState> {
 }
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    Cinzel_500Medium,
+    Cinzel_700Bold,
+    Cinzel_900Black,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  // Keep the native splash color until fonts resolve — seamless, no flash.
+  if (!fontsLoaded && !fontError) {
+    return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
