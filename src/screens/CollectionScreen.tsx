@@ -29,16 +29,20 @@ import { CardDef, CardType, Faction, Rarity } from '../types/card';
 import { RootStackParamList } from '../navigation/types';
 
 const SCREEN_W = Dimensions.get('window').width;
-const CARD_W = Math.floor((SCREEN_W - 14 * 2 - 12) / 2);
+const H_PAD = 14;
+const GRID_GAP = 10;
+/** Aim for ~3 columns on phones, ~4 on wide screens; keep cards readable. */
+const COLUMNS = SCREEN_W >= 620 ? 4 : 3;
+const CARD_W = Math.floor((SCREEN_W - H_PAD * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
 
 const factions: (Faction | 'All')[] = ['All', 'Dawn', 'Tide', 'Shade', 'Ember', 'Thorn', 'Neutral'];
 const cardTypes: (CardType | 'All')[] = ['All', 'Unit', 'Sigil', 'Canticle', 'Domain', 'Bond', 'Relic'];
 const rarities: { key: Rarity | 'All'; label: string }[] = [
   { key: 'All', label: 'All' },
-  { key: 'Common', label: 'C' },
-  { key: 'Uncommon', label: 'U' },
-  { key: 'Rare', label: 'R' },
-  { key: 'Legendary', label: 'L' },
+  { key: 'Common', label: 'Common' },
+  { key: 'Uncommon', label: 'Uncommon' },
+  { key: 'Rare', label: 'Rare' },
+  { key: 'Legendary', label: 'Legendary' },
 ];
 
 const FACTION_ICONS: Record<string, IconName> = {
@@ -68,6 +72,7 @@ const CollectionCard = memo(function CollectionCard({
       <CardView
         card={item}
         width={CARD_W}
+        compact
         count={qty}
         unowned={qty <= 0}
         onPress={onPress}
@@ -76,6 +81,22 @@ const CollectionCard = memo(function CollectionCard({
     </View>
   );
 });
+
+/** One compact filter line: small left label + horizontal scrolling chips. */
+function FilterRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.filterRow}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+      >
+        {children}
+      </ScrollView>
+    </View>
+  );
+}
 
 export function CollectionScreen() {
   const nav = useNavigation<Nav>();
@@ -89,6 +110,7 @@ export function CollectionScreen() {
   const [ownedOnly, setOwnedOnly] = useState(false);
   const [q, setQ] = useState('');
   const [zoom, setZoom] = useState<CardDef | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const data = useMemo(() => {
     const qq = q.trim().toLowerCase();
@@ -104,6 +126,18 @@ export function CollectionScreen() {
 
   const ownedCount = Object.values(owned).reduce((a, b) => a + b, 0);
   const unique = Object.keys(owned).filter((id) => (owned[id] ?? 0) > 0).length;
+  const activeFilters =
+    (faction !== 'All' ? 1 : 0) +
+    (typeFilter !== 'All' ? 1 : 0) +
+    (rarity !== 'All' ? 1 : 0) +
+    (ownedOnly ? 1 : 0);
+
+  const clearFilters = () => {
+    setFaction('All');
+    setTypeFilter('All');
+    setRarity('All');
+    setOwnedOnly(false);
+  };
 
   const renderItem = useCallback(
     ({ item }: { item: CardDef }) => {
@@ -126,7 +160,7 @@ export function CollectionScreen() {
         <ScreenHeader
           kicker="THE VAULT"
           title="Collection"
-          meta={`${unique}/${ALL_CARDS.length} unique · ${ownedCount} copies · hold to inspect`}
+          meta={`${unique}/${ALL_CARDS.length} unique · ${ownedCount} copies`}
         />
 
         <View style={styles.searchWrap}>
@@ -145,36 +179,62 @@ export function CollectionScreen() {
           )}
         </View>
 
-        <View style={styles.filtersBlock}>
-          <Text style={styles.filterLabel}>Faction</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {factions.map((item) => (
-              <FilterChip
-                key={item}
-                label={item}
-                active={faction === item}
-                onPress={() => setFaction(item)}
-                icon={FACTION_ICONS[item]}
-                accent={item === 'All' ? palette.gold : factionColors[item as Faction].main}
-              />
-            ))}
-          </ScrollView>
+        {/* Filter toggle — collapses the filter block so the grid stays tall. */}
+        <View style={styles.filterBar}>
+          <Pressable
+            onPress={() => setFiltersOpen((v) => !v)}
+            style={[styles.filterToggle, (filtersOpen || activeFilters > 0) && styles.filterToggleOn]}
+          >
+            <Icon
+              name="settings"
+              size={13}
+              color={filtersOpen || activeFilters > 0 ? palette.goldBright : palette.textMuted}
+            />
+            <Text
+              style={[
+                styles.filterToggleText,
+                (filtersOpen || activeFilters > 0) && { color: palette.goldBright },
+              ]}
+            >
+              Filters{activeFilters > 0 ? ` · ${activeFilters}` : ''}
+            </Text>
+            <Icon name={filtersOpen ? 'remove' : 'add'} size={13} color={palette.textMuted} />
+          </Pressable>
+          <Text style={styles.resultCount}>{data.length} shown</Text>
+          {activeFilters > 0 && (
+            <Pressable onPress={clearFilters} hitSlop={8} style={styles.clearBtn}>
+              <Text style={styles.clearText}>Clear</Text>
+            </Pressable>
+          )}
+        </View>
 
-          <Text style={styles.filterLabel}>Type</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {cardTypes.map((item) => (
-              <FilterChip
-                key={item}
-                label={item}
-                active={typeFilter === item}
-                onPress={() => setTypeFilter(item)}
-              />
-            ))}
-          </ScrollView>
+        {filtersOpen && (
+          <View style={styles.filtersBlock}>
+            <FilterRow label="Faction">
+              {factions.map((item) => (
+                <FilterChip
+                  key={item}
+                  label={item}
+                  active={faction === item}
+                  onPress={() => setFaction(item)}
+                  icon={FACTION_ICONS[item]}
+                  accent={item === 'All' ? palette.gold : factionColors[item as Faction].main}
+                />
+              ))}
+            </FilterRow>
 
-          <View style={styles.rarityRow}>
-            <Text style={styles.filterLabelInline}>Rarity</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            <FilterRow label="Type">
+              {cardTypes.map((item) => (
+                <FilterChip
+                  key={item}
+                  label={item}
+                  active={typeFilter === item}
+                  onPress={() => setTypeFilter(item)}
+                />
+              ))}
+            </FilterRow>
+
+            <FilterRow label="Rarity">
               {rarities.map((r) => (
                 <FilterChip
                   key={r.key}
@@ -191,18 +251,19 @@ export function CollectionScreen() {
                 onPress={() => setOwnedOnly((v) => !v)}
                 accent={palette.success}
               />
-            </ScrollView>
+            </FilterRow>
           </View>
-        </View>
+        )}
 
         <FlatList
           data={data}
+          key={COLUMNS}
           keyExtractor={(c) => c.id}
-          numColumns={2}
+          numColumns={COLUMNS}
           columnWrapperStyle={styles.gridRow}
           contentContainerStyle={{
             paddingBottom: Math.max(insets.bottom, 16) + 72,
-            paddingTop: 4,
+            paddingTop: 6,
           }}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -211,9 +272,9 @@ export function CollectionScreen() {
             </View>
           }
           renderItem={renderItem}
-          initialNumToRender={6}
-          maxToRenderPerBatch={6}
-          windowSize={5}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={7}
           removeClippedSubviews={Platform.OS === 'android'}
         />
         <CardZoomModal card={zoom} visible={!!zoom} onClose={() => setZoom(null)} />
@@ -223,7 +284,7 @@ export function CollectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 14 },
+  root: { flex: 1, paddingHorizontal: H_PAD },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -233,7 +294,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(212,168,75,0.28)',
     paddingHorizontal: 12,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   search: {
     flex: 1,
@@ -242,36 +303,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingVertical: 11,
   },
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  filterToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(180,190,210,0.28)',
+    backgroundColor: 'rgba(20,26,36,0.85)',
+  },
+  filterToggleOn: {
+    borderColor: 'rgba(212,168,75,0.55)',
+    backgroundColor: 'rgba(212,168,75,0.12)',
+  },
+  filterToggleText: { fontFamily: fonts.bodySemi, fontSize: 12.5, color: palette.textMuted },
+  resultCount: { ...typo.caption, fontSize: 12, color: '#9AA3B5', flex: 1 },
+  clearBtn: { paddingVertical: 6, paddingHorizontal: 10 },
+  clearText: { fontFamily: fonts.bodySemi, fontSize: 12, color: palette.gold },
   filtersBlock: {
-    backgroundColor: 'rgba(14,18,26,0.88)',
+    backgroundColor: 'rgba(14,18,26,0.9)',
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: 'rgba(212,168,75,0.18)',
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 10,
-    marginBottom: 10,
-    gap: 6,
+    marginBottom: 8,
+    gap: 4,
   },
+  filterRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40 },
   filterLabel: {
     fontFamily: fonts.bodySemi,
     fontSize: 10,
-    letterSpacing: 1.4,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
     color: palette.gold,
-    marginBottom: 2,
+    width: 52,
   },
-  filterLabelInline: {
-    fontFamily: fonts.bodySemi,
-    fontSize: 10,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: palette.gold,
-    marginRight: 8,
-    alignSelf: 'center',
-  },
-  chipRow: { alignItems: 'center', paddingRight: 8, gap: 8, paddingVertical: 2 },
-  rarityRow: { flexDirection: 'row', alignItems: 'center' },
-  gridRow: { justifyContent: 'space-between', marginBottom: 12 },
+  chipRow: { alignItems: 'center', paddingRight: 8, gap: 8, paddingVertical: 3 },
+  gridRow: { gap: GRID_GAP, marginBottom: GRID_GAP },
   cardCell: { width: CARD_W },
   empty: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   emptyText: { ...typo.caption, fontSize: 13, color: '#C0C6D0' },

@@ -27,7 +27,7 @@ import { VaultButton } from '../components/VaultButton';
 import { CardDef, FieldPermanent, FieldUnit, EssenceCost } from '../types/card';
 import { STEP_LABELS, canPlayType } from '../types/battleFlow';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 const PHASE_TRACK: { key: string; label: string; match: (p: string) => boolean }[] = [
   { key: 'ready', label: 'Ready', match: (p) => p === 'untap' || p === 'upkeep' },
@@ -44,7 +44,6 @@ function essenceTotal(e: { dawn: number; tide: number; shade: number; ember: num
 
 const CARD_W = Math.min(100, Math.max(78, Math.round(SCREEN_W * 0.2)));
 const DOMAIN_W = Math.round(CARD_W * 0.74);
-const FIELD_CARD_H = Math.round(CARD_W * 1.42);
 
 const ESSENCE_TYPES: { key: keyof EssenceCost; label: string; color: string }[] = [
   { key: 'dawn', label: 'D', color: factionColors.Dawn.main },
@@ -104,10 +103,12 @@ function DyingGhost({
   cardId,
   foe,
   onDone,
+  width = CARD_W,
 }: {
   cardId: string;
   foe?: boolean;
   onDone: () => void;
+  width?: number;
 }) {
   const opacity = useRef(new Animated.Value(1)).current;
   const shake = useRef(new Animated.Value(0)).current;
@@ -134,7 +135,7 @@ function DyingGhost({
       ]}
       pointerEvents="none"
     >
-      <CardView card={card} width={CARD_W} board />
+      <CardView card={card} width={width} board />
       <View style={styles.ghostSlash} />
     </Animated.View>
   );
@@ -355,6 +356,7 @@ export function BattleScreen() {
 
   const [zoomCard, setZoomCard] = useState<CardDef | null>(null);
   const [zoomHandIndex, setZoomHandIndex] = useState<number | null>(null);
+  const [arenaH, setArenaH] = useState(0);
   const [logOpen, setLogOpen] = useState(false);
   const [ashwell, setAshwell] = useState<'player' | 'enemy' | null>(null);
   const [clashFx, setClashFx] = useState(false);
@@ -634,6 +636,26 @@ export function BattleScreen() {
   }, [handCount]);
   const combatGlow = combatPulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
 
+  // Size the battlefield to the space actually available so nothing clips.
+  // Each half stacks a unit row (cardW·ratio) + a domain row (domainW·ratio),
+  // plus the essence label and paddings. Solve for cardW that fits two halves.
+  const { boardW, domainW } = useMemo(() => {
+    const BOARD_RATIO = 88 / 63;
+    const DOMAIN_SCALE = 0.72;
+    // Fixed chrome inside the arena per half: essence label + row paddings.
+    const halfChrome = 44;
+    const dividerH = 26;
+    // Fallback estimate for the first paint (before onLayout): screen minus chrome.
+    const estimate = Math.max(220, SCREEN_H * 0.44);
+    const usable = Math.max(0, (arenaH || estimate) - dividerH);
+    const perHalf = usable / 2 - halfChrome;
+    // perHalf ≈ cardW·ratio·(1 + DOMAIN_SCALE)
+    const raw = perHalf / (BOARD_RATIO * (1 + DOMAIN_SCALE));
+    const byWidth = Math.round(SCREEN_W * 0.2);
+    const w = Math.max(52, Math.min(96, byWidth, Math.floor(raw)));
+    return { boardW: w, domainW: Math.round(w * DOMAIN_SCALE) };
+  }, [arenaH]);
+
   return (
     <View style={styles.root}>
       <Image
@@ -721,7 +743,13 @@ export function BattleScreen() {
         )}
 
         {/* ── Battlefield ── */}
-        <View style={styles.arena}>
+        <View
+          style={styles.arena}
+          onLayout={(e) => {
+            const h = Math.round(e.nativeEvent.layout.height);
+            if (h && Math.abs(h - arenaH) > 4) setArenaH(h);
+          }}
+        >
           {/* Enemy half: permanents then units (top of board) */}
           <View style={styles.half}>
             <View style={styles.permStrip}>
@@ -736,6 +764,7 @@ export function BattleScreen() {
                   <DomainChip
                     key={d.instanceId}
                     d={d}
+                    width={domainW}
                     canTap={false}
                     onTap={() => {}}
                     onInspect={() => inspect(tryGetCard(d.cardId))}
@@ -745,6 +774,7 @@ export function BattleScreen() {
                   <PermCard
                     key={p.instanceId}
                     p={p}
+                    width={domainW}
                     onInspect={() => inspect(tryGetCard(p.cardId))}
                   />
                 ))}
@@ -766,6 +796,7 @@ export function BattleScreen() {
                     key={u.instanceId}
                     unit={u}
                     foe
+                    width={boardW}
                     attacking={combat.attackers.includes(u.instanceId)}
                     selected={combat.selectedAttackerForBlock === u.instanceId}
                     exhausted={u.exhausted}
@@ -785,6 +816,7 @@ export function BattleScreen() {
                       key={g.key}
                       cardId={g.cardId}
                       foe
+                      width={boardW}
                       onDone={() => setGhosts((all) => all.filter((x) => x.key !== g.key))}
                     />
                   ))}
@@ -824,6 +856,7 @@ export function BattleScreen() {
                     <FieldCard
                       key={u.instanceId}
                       unit={u}
+                      width={boardW}
                       attacking={isAtk}
                       blocking={isBlk}
                       exhausted={u.exhausted}
@@ -839,6 +872,7 @@ export function BattleScreen() {
                     <DyingGhost
                       key={g.key}
                       cardId={g.cardId}
+                      width={boardW}
                       onDone={() => setGhosts((all) => all.filter((x) => x.key !== g.key))}
                     />
                   ))}
@@ -859,6 +893,7 @@ export function BattleScreen() {
                   <DomainChip
                     key={d.instanceId}
                     d={d}
+                    width={domainW}
                     canTap={canAct && !d.exhausted}
                     onTap={() => tapDomain(d.instanceId)}
                     onInspect={() => inspect(tryGetCard(d.cardId))}
@@ -870,6 +905,7 @@ export function BattleScreen() {
                     <PermCard
                       key={p.instanceId}
                       p={p}
+                      width={domainW}
                       onPress={() => {
                         if (isVault && myTurn && !p.exhausted) useGameStore.getState().tapVault(p.instanceId);
                       }}
@@ -1215,7 +1251,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    gap: 8,
+    paddingTop: 2,
+    gap: 6,
   },
   headerMeta: { flex: 1 },
   foeName: {
@@ -1294,9 +1331,9 @@ const styles = StyleSheet.create({
   phasePill: {
     borderWidth: 1.5,
     borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minWidth: 78,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    minWidth: 62,
     alignItems: 'center',
     backgroundColor: 'rgba(20,16,12,0.85)',
   },
@@ -1348,15 +1385,15 @@ const styles = StyleSheet.create({
   arena: {
     flex: 1,
     marginHorizontal: 6,
-    overflow: 'visible',
-    minHeight: 176,
+    overflow: 'hidden',
+    minHeight: 150,
   },
   half: {
     flex: 1,
-    paddingVertical: 4,
+    paddingVertical: 2,
     paddingHorizontal: 6,
     justifyContent: 'space-between',
-    overflow: 'visible',
+    overflow: 'hidden',
     minHeight: 0,
   },
   halfRow: {
@@ -1364,8 +1401,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     flex: 1,
-    minHeight: 110,
-    overflow: 'visible',
+    minHeight: 0,
+    overflow: 'hidden',
   },
   unitScroll: { flex: 1 },
   unitRow: {
@@ -1373,8 +1410,8 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingRight: 4,
     paddingLeft: 4,
-    paddingVertical: 8,
-    minHeight: 110,
+    paddingVertical: 4,
+    minHeight: 0,
   },
   fieldCardSlot: { paddingHorizontal: 3, paddingVertical: 3 },
   fieldCardLift: {
@@ -1490,8 +1527,8 @@ const styles = StyleSheet.create({
     gap: 6,
     alignItems: 'center',
     paddingRight: 4,
-    paddingVertical: 6,
-    minHeight: 84,
+    paddingVertical: 3,
+    minHeight: 0,
   },
   domainEmpty: { ...type.caption, fontSize: 10, color: '#A8B0C0' },
   domainTile: {
@@ -1540,21 +1577,19 @@ const styles = StyleSheet.create({
   },
 
   logIconBtn: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'rgba(212,168,75,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(16,21,30,0.7)',
-    marginLeft: 4,
   },
   concedeBtn: {
-    marginLeft: 4,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: 'rgba(196,69,54,0.45)',
     backgroundColor: 'rgba(26,16,20,0.7)',

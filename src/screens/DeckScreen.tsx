@@ -18,7 +18,6 @@ import { CardView } from '../components/CardView';
 import { VaultScreenShell } from '../components/VaultScreenShell';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { FilterChip } from '../components/FilterChip';
-import { Panel } from '../components/Panel';
 import { VaultButton } from '../components/VaultButton';
 import { Icon, IconName } from '../components/Icon';
 import { useGameStore, validateDeck } from '../store/gameStore';
@@ -29,8 +28,11 @@ import { radii } from '../theme/tokens';
 import { CardType, Faction } from '../types/card';
 
 const SCREEN_W = Dimensions.get('window').width;
-const OWNED_CARD_W = Math.floor((SCREEN_W - 14 * 2 - 12) / 2);
-const DECK_CARD_W = 92;
+const H_PAD = 14;
+const GRID_GAP = 10;
+const COLUMNS = SCREEN_W >= 620 ? 4 : 3;
+const OWNED_CARD_W = Math.floor((SCREEN_W - H_PAD * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
+const DECK_CARD_W = 74;
 
 const CURVE_BUCKETS = ['0', '1', '2', '3', '4', '5', '6', '7+'];
 const CURVE_FACTIONS: Faction[] = ['Dawn', 'Tide', 'Shade', 'Ember', 'Thorn', 'Neutral'];
@@ -53,6 +55,8 @@ export function DeckScreen() {
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState<(typeof FILTER_TYPES)[number]>('All');
   const [factionFilter, setFactionFilter] = useState<(typeof FILTER_FACTIONS)[number]>('All');
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -96,6 +100,11 @@ export function DeckScreen() {
     return c;
   }, [draft]);
 
+  const domainCount = useMemo(
+    () => draft.filter((id) => tryGetCard(id)?.type === 'Domain').length,
+    [draft],
+  );
+
   const ownedList = useMemo(
     () =>
       ALL_CARDS.filter((c) => {
@@ -107,6 +116,9 @@ export function DeckScreen() {
       }),
     [owned, typeFilter, factionFilter, q],
   );
+
+  const activeFilters =
+    (typeFilter !== 'All' ? 1 : 0) + (factionFilter !== 'All' ? 1 : 0);
 
   const add = (id: string) => {
     const card = getCard(id);
@@ -169,6 +181,167 @@ export function DeckScreen() {
 
   const valid = !validateDeck(draft, owned);
 
+  const listHeader = (
+    <View>
+      {/* Status + slot */}
+      <View style={styles.statusRow}>
+        <View style={[styles.statusPill, valid ? styles.statusOk : styles.statusBad]}>
+          <Icon name={valid ? 'check' : 'warning'} size={12} color={valid ? '#9EE8C4' : '#E8A090'} />
+          <Text style={[styles.statusText, { color: valid ? '#9EE8C4' : '#E8A090' }]}>
+            {draft.length}/40 · {valid ? 'Legal' : 'Incomplete'}
+          </Text>
+        </View>
+        <View style={styles.slotToggle}>
+          {(['A', 'B'] as const).map((slot) => {
+            const active = activeDeckSlot === slot;
+            return (
+              <Pressable
+                key={slot}
+                onPress={() => !active && doSwapSlot()}
+                style={[styles.slotSeg, active && styles.slotSegActive]}
+              >
+                <Text style={[styles.slotSegText, active && styles.slotSegTextActive]}>Deck {slot}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Deck strip */}
+      <View style={styles.deckSection}>
+        <Pressable style={styles.sectionRow} onPress={() => setStatsOpen((v) => !v)}>
+          <Text style={styles.sectionLabel}>Your deck</Text>
+          <View style={styles.sectionRowRight}>
+            <Text style={styles.domainTag}>{domainCount} Domain</Text>
+            <View style={styles.statsToggle}>
+              <Icon name="stats" size={12} color={palette.gold} />
+              <Text style={styles.statsToggleText}>Stats</Text>
+              <Icon name={statsOpen ? 'remove' : 'add'} size={11} color={palette.textMuted} />
+            </View>
+          </View>
+        </Pressable>
+
+        {statsOpen && (
+          <View style={styles.statsBox}>
+            <View style={styles.curveRow}>
+              {curve.map((n, i) => (
+                <View key={i} style={styles.curveCol}>
+                  <View style={styles.curveBarTrack}>
+                    <LinearGradient
+                      colors={['#F0C75E', '#B8902F']}
+                      style={[styles.curveBar, { height: Math.max(2, (n / curveMax) * 34) }]}
+                    />
+                  </View>
+                  <Text style={styles.curveCount}>{n}</Text>
+                  <Text style={styles.curveLabel}>{CURVE_BUCKETS[i]}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.factionChipRow}>
+              {CURVE_FACTIONS.filter((f) => factionCounts[f] > 0).map((f) => (
+                <View key={f} style={[styles.factionChip, { borderColor: factionColors[f].main + '88' }]}>
+                  <Icon name={FACTION_ICONS[f]} size={11} color={factionColors[f].main} />
+                  <Text style={[styles.factionChipText, { color: factionColors[f].main }]}>
+                    {factionCounts[f]}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.deckScrollContent}
+        >
+          {deckIds.length === 0 ? (
+            <View style={styles.emptyInline}>
+              <Icon name="deck" size={18} color={palette.goldDim} />
+              <Text style={styles.empty}>Empty — add cards from your collection below</Text>
+            </View>
+          ) : (
+            deckIds.map((id) => {
+              const card = tryGetCard(id);
+              if (!card) return null;
+              return (
+                <View key={id} style={styles.deckCardWrap}>
+                  <CardView
+                    card={card}
+                    width={DECK_CARD_W}
+                    compact
+                    count={counts[id]}
+                    onPress={() => remove(id)}
+                  />
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      </View>
+
+      {/* Collection header + filters */}
+      <View style={styles.collectionHead}>
+        <Text style={styles.sectionLabel}>Your collection</Text>
+        <Text style={styles.sectionRight}>tap card to add</Text>
+      </View>
+      <View style={styles.searchWrap}>
+        <Icon name="search" size={15} color={palette.textMuted} />
+        <TextInput
+          placeholder="Search owned cards..."
+          placeholderTextColor="#8A93A3"
+          value={q}
+          onChangeText={setQ}
+          style={styles.search}
+        />
+        <Pressable
+          onPress={() => setFiltersOpen((v) => !v)}
+          hitSlop={6}
+          style={[styles.filterBtn, (filtersOpen || activeFilters > 0) && styles.filterBtnOn]}
+        >
+          <Icon
+            name="settings"
+            size={13}
+            color={filtersOpen || activeFilters > 0 ? palette.goldBright : palette.textMuted}
+          />
+          {activeFilters > 0 && <Text style={styles.filterBtnCount}>{activeFilters}</Text>}
+        </Pressable>
+      </View>
+
+      {filtersOpen && (
+        <View style={styles.filtersBlock}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {FILTER_TYPES.map((item) => (
+              <FilterChip
+                key={item}
+                label={item}
+                active={typeFilter === item}
+                onPress={() => setTypeFilter(item)}
+              />
+            ))}
+          </ScrollView>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 6 }}
+            contentContainerStyle={styles.chipRow}
+          >
+            {FILTER_FACTIONS.map((item) => (
+              <FilterChip
+                key={item}
+                label={item}
+                active={factionFilter === item}
+                onPress={() => setFactionFilter(item)}
+                icon={FACTION_ICONS[item]}
+                accent={item === 'All' ? palette.gold : factionColors[item as Faction].main}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <VaultScreenShell bgImage={require('../../assets/ui/bg-home-vault.png')}>
       <View style={[styles.root, { paddingTop: insets.top + 10 }]}>
@@ -183,160 +356,37 @@ export function DeckScreen() {
           }
         />
 
-        <View style={styles.statusRow}>
-          <View style={[styles.statusPill, valid ? styles.statusOk : styles.statusBad]}>
-            <Icon name={valid ? 'check' : 'warning'} size={12} color={valid ? '#9EE8C4' : '#E8A090'} />
-            <Text style={[styles.statusText, { color: valid ? '#9EE8C4' : '#E8A090' }]}>
-              {draft.length}/40 · {valid ? 'Legal' : 'Incomplete'}
-            </Text>
-          </View>
-          <View style={styles.slotToggle}>
-            {(['A', 'B'] as const).map((slot) => {
-              const active = activeDeckSlot === slot;
-              return (
-                <Pressable
-                  key={slot}
-                  onPress={() => !active && doSwapSlot()}
-                  style={[styles.slotSeg, active && styles.slotSegActive]}
-                >
-                  <Text style={[styles.slotSegText, active && styles.slotSegTextActive]}>Deck {slot}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Compact curve */}
-        <Panel style={styles.curveBox}>
-          <View style={styles.curveRow}>
-            {curve.map((n, i) => (
-              <View key={i} style={styles.curveCol}>
-                <View style={styles.curveBarTrack}>
-                  <LinearGradient
-                    colors={['#F0C75E', '#B8902F']}
-                    style={[styles.curveBar, { height: Math.max(2, (n / curveMax) * 36) }]}
-                  />
-                </View>
-                <Text style={styles.curveCount}>{n}</Text>
-                <Text style={styles.curveLabel}>{CURVE_BUCKETS[i]}</Text>
-              </View>
-            ))}
-          </View>
-          <View style={styles.factionChipRow}>
-            {CURVE_FACTIONS.filter((f) => factionCounts[f] > 0).map((f) => (
-              <View key={f} style={[styles.factionChip, { borderColor: factionColors[f].main + '88' }]}>
-                <Icon name={FACTION_ICONS[f]} size={11} color={factionColors[f].main} />
-                <Text style={[styles.factionChipText, { color: factionColors[f].main }]}>
-                  {factionCounts[f]}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </Panel>
-
-        {/* YOUR DECK — fixed height strip, cards fully visible */}
-        <View style={styles.deckSection}>
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionLabel}>Your deck</Text>
-            <Text style={styles.sectionRight}>tap card to remove</Text>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.deckScroll}
-            contentContainerStyle={styles.deckScrollContent}
-          >
-            {deckIds.length === 0 ? (
-              <View style={styles.emptyInline}>
-                <Icon name="deck" size={18} color={palette.goldDim} />
-                <Text style={styles.empty}>Empty — add cards from your collection below</Text>
-              </View>
-            ) : (
-              deckIds.map((id) => {
-                const card = tryGetCard(id);
-                if (!card) return null;
-                return (
-                  <View key={id} style={styles.deckCardWrap}>
-                    <CardView
-                      card={card}
-                      width={DECK_CARD_W}
-                      compact
-                      count={counts[id]}
-                      onPress={() => remove(id)}
-                    />
-                  </View>
-                );
-              })
-            )}
-          </ScrollView>
-        </View>
-
-        {/* COLLECTION */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionLabel}>Your collection</Text>
-          <Text style={styles.sectionRight}>tap to add</Text>
-        </View>
-        <View style={styles.searchWrap}>
-          <Icon name="search" size={15} color={palette.textMuted} />
-          <TextInput
-            placeholder="Search owned cards..."
-            placeholderTextColor="#8A93A3"
-            value={q}
-            onChangeText={setQ}
-            style={styles.search}
-          />
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {FILTER_TYPES.map((item) => (
-            <FilterChip
-              key={item}
-              label={item}
-              active={typeFilter === item}
-              onPress={() => setTypeFilter(item)}
-            />
-          ))}
-        </ScrollView>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 6, marginBottom: 8 }}
-          contentContainerStyle={styles.chipRow}
-        >
-          {FILTER_FACTIONS.map((item) => (
-            <FilterChip
-              key={item}
-              label={item}
-              active={factionFilter === item}
-              onPress={() => setFactionFilter(item)}
-              icon={FACTION_ICONS[item]}
-              accent={item === 'All' ? palette.gold : factionColors[item as Faction].main}
-            />
-          ))}
-        </ScrollView>
-
         <FlatList
-          style={styles.ownedList}
           data={ownedList}
+          key={COLUMNS}
           keyExtractor={(c) => c.id}
-          numColumns={2}
+          numColumns={COLUMNS}
           columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 64 }}
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 72 }}
           ListEmptyComponent={<Text style={styles.empty}>No owned cards match these filters.</Text>}
-          renderItem={({ item }) => (
-            <View style={styles.ownedCell}>
-              <CardView
-                card={item}
-                width={OWNED_CARD_W}
-                count={owned[item.id]}
-                onPress={() => add(item.id)}
-              />
-              {(counts[item.id] ?? 0) > 0 && (
-                <View style={styles.inDeckBadge}>
-                  <Text style={styles.inDeckBadgeText}>In deck ×{counts[item.id]}</Text>
-                </View>
-              )}
-            </View>
-          )}
+          renderItem={({ item }) => {
+            const inDeck = counts[item.id] ?? 0;
+            return (
+              <View style={styles.ownedCell}>
+                <CardView
+                  card={item}
+                  width={OWNED_CARD_W}
+                  compact
+                  count={owned[item.id]}
+                  onPress={() => add(item.id)}
+                />
+                {inDeck > 0 && (
+                  <View style={styles.inDeckBadge}>
+                    <Text style={styles.inDeckBadgeText}>×{inDeck}</Text>
+                  </View>
+                )}
+              </View>
+            );
+          }}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={7}
         />
       </View>
     </VaultScreenShell>
@@ -344,13 +394,13 @@ export function DeckScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, paddingHorizontal: 14 },
+  root: { flex: 1, paddingHorizontal: H_PAD },
   headerBtns: { flexDirection: 'row', gap: 8 },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
     gap: 10,
   },
   statusPill: {
@@ -378,10 +428,57 @@ const styles = StyleSheet.create({
   slotSegActive: { backgroundColor: 'rgba(212,168,75,0.18)' },
   slotSegText: { fontFamily: fonts.bodySemi, fontSize: 12, color: '#A8B0C0' },
   slotSegTextActive: { color: palette.goldBright },
-  curveBox: { paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8 },
+  deckSection: {
+    backgroundColor: 'rgba(12,16,24,0.92)',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.22)',
+    paddingTop: 8,
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 10,
+  },
+  sectionRowRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  domainTag: { ...typo.caption, fontSize: 11, color: '#A8B0C0' },
+  statsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.3)',
+    backgroundColor: 'rgba(212,168,75,0.08)',
+  },
+  statsToggleText: { fontFamily: fonts.bodySemi, fontSize: 11, color: palette.gold },
+  statsBox: {
+    marginHorizontal: 10,
+    marginBottom: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: radii.sm,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,170,0.14)',
+  },
+  sectionLabel: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    color: palette.gold,
+  },
+  sectionRight: { ...typo.caption, fontSize: 11, color: '#A8B0C0' },
   curveRow: { flexDirection: 'row', justifyContent: 'space-between' },
   curveCol: { alignItems: 'center', flex: 1 },
-  curveBarTrack: { height: 36, width: 12, justifyContent: 'flex-end' },
+  curveBarTrack: { height: 34, width: 12, justifyContent: 'flex-end' },
   curveBar: { width: 12, borderRadius: 3 },
   curveCount: { color: palette.text, fontSize: 10, fontFamily: fonts.bodyBold, marginTop: 3 },
   curveLabel: { color: '#9AA3B5', fontSize: 9, fontFamily: fonts.bodyMedium },
@@ -397,40 +494,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.25)',
   },
   factionChipText: { fontSize: 11, fontFamily: fonts.bodySemi },
-  deckSection: {
-    backgroundColor: 'rgba(12,16,24,0.92)',
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: 'rgba(212,168,75,0.22)',
-    paddingTop: 8,
-    paddingBottom: 10,
-    marginBottom: 10,
-  },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 10,
-  },
-  sectionLabel: {
-    fontFamily: fonts.bodySemi,
-    fontSize: 11,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    color: palette.gold,
-  },
-  sectionRight: { ...typo.caption, fontSize: 11, color: '#A8B0C0' },
-  deckScroll: { maxHeight: 168 },
   deckScrollContent: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 2,
     alignItems: 'flex-start',
     gap: 8,
   },
   deckCardWrap: { marginRight: 2 },
   emptyInline: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
   empty: { ...typo.caption, padding: 12, color: '#B8C0CC' },
+  collectionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -449,23 +527,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     paddingVertical: 10,
   },
+  filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: radii.sm,
+  },
+  filterBtnOn: { backgroundColor: 'rgba(212,168,75,0.14)' },
+  filterBtnCount: { fontFamily: fonts.bodyBold, fontSize: 11, color: palette.goldBright },
+  filtersBlock: {
+    backgroundColor: 'rgba(14,18,26,0.9)',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.18)',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
   chipRow: { alignItems: 'center', paddingRight: 8, gap: 8 },
-  ownedList: { flex: 1 },
-  gridRow: { justifyContent: 'space-between', marginBottom: 12 },
+  gridRow: { gap: GRID_GAP, marginBottom: GRID_GAP },
   ownedCell: { width: OWNED_CARD_W },
   inDeckBadge: {
-    marginTop: 4,
-    alignSelf: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(212,168,75,0.18)',
+    backgroundColor: 'rgba(212,168,75,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(212,168,75,0.4)',
+    borderColor: '#fff6',
   },
   inDeckBadgeText: {
-    fontFamily: fonts.bodySemi,
-    fontSize: 10,
-    color: palette.goldBright,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: '#1A1200',
   },
 });

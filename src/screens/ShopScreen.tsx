@@ -200,14 +200,10 @@ export function ShopScreen() {
         <View style={styles.forgeHeader}>
           <Text style={styles.forgeTitle}>Rune Forge</Text>
           <Text style={styles.sectionHint}>
-            Disenchant spare copies for dust · Forge missing cards (Legendaries cost{' '}
-            {FORGE_COST.Legendary} dust).
+            Disenchant spare copies into Dust, then Forge the exact cards you're missing — no luck
+            required.
           </Text>
-          <Text style={styles.rates}>
-            Dust: C{DISENCHANT_DUST.Common}/U{DISENCHANT_DUST.Uncommon}/R{DISENCHANT_DUST.Rare}/L
-            {DISENCHANT_DUST.Legendary} · Forge: C{FORGE_COST.Common}/U{FORGE_COST.Uncommon}/R
-            {FORGE_COST.Rare}
-          </Text>
+          <RateLegend />
         </View>
 
         <View style={styles.modeToggle}>
@@ -324,6 +320,32 @@ function OddsRow({ icon, text }: { icon: 'cards' | 'check' | 'dust' | 'shield'; 
   );
 }
 
+const LEGEND_RARITIES: Rarity[] = ['Common', 'Uncommon', 'Rare', 'Legendary'];
+
+/** Compact table: what you gain by disenchanting vs. what it costs to forge, per rarity. */
+function RateLegend() {
+  return (
+    <View style={styles.legend}>
+      <View style={styles.legendHeadRow}>
+        <Text style={[styles.legendCell, styles.legendCellName, styles.legendHead]}>Rarity</Text>
+        <Text style={[styles.legendCell, styles.legendHead]}>Disenchant</Text>
+        <Text style={[styles.legendCell, styles.legendHead]}>Forge</Text>
+      </View>
+      {LEGEND_RARITIES.map((r) => (
+        <View key={r} style={styles.legendRow}>
+          <View style={[styles.legendCellName, styles.legendNameWrap]}>
+            <View style={[styles.legendDot, { backgroundColor: rarityColors[r] }]} />
+            <Text style={[styles.legendName, { color: rarityColors[r] }]}>{r}</Text>
+          </View>
+          <Text style={[styles.legendCell, styles.legendGain]}>+{DISENCHANT_DUST[r]}</Text>
+          <Text style={[styles.legendCell, styles.legendCost]}>{FORGE_COST[r]}</Text>
+        </View>
+      ))}
+      <Text style={styles.legendFoot}>Values in Dust. Deck copies are always protected.</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, paddingHorizontal: 18 },
   balanceRow: { flexDirection: 'row', gap: 8 },
@@ -367,8 +389,45 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
   },
-  sectionHint: { ...type.caption, fontSize: 13, lineHeight: 19, marginBottom: 6 },
-  rates: { fontFamily: fonts.bodyMedium, color: '#7A8494', fontSize: 11 },
+  sectionHint: { ...type.caption, fontSize: 13, lineHeight: 19, marginBottom: 10 },
+  legend: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(120,140,170,0.16)',
+    backgroundColor: 'rgba(12,16,24,0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  legendHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 6,
+    marginBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  legendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
+  legendCell: { flex: 1, textAlign: 'right', fontFamily: fonts.bodySemi, fontSize: 12 },
+  legendCellName: { flex: 1.4, textAlign: 'left' },
+  legendHead: {
+    color: '#7A8494',
+    fontSize: 10,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    fontFamily: fonts.bodySemi,
+  },
+  legendNameWrap: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  legendDot: { width: 8, height: 8, borderRadius: 2, transform: [{ rotate: '45deg' }] },
+  legendName: { fontFamily: fonts.bodySemi, fontSize: 12.5 },
+  legendGain: { color: '#9EE8C4' },
+  legendCost: { color: palette.goldBright },
+  legendFoot: {
+    fontFamily: fonts.bodyMedium,
+    color: '#6B7484',
+    fontSize: 10.5,
+    marginTop: 7,
+    fontStyle: 'italic',
+  },
   modeToggle: {
     flexDirection: 'row',
     borderRadius: radii.md,
