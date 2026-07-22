@@ -24,7 +24,7 @@ import { fonts, type } from '../theme/typography';
 import { radii, shadows } from '../theme/tokens';
 import { Icon, IconName } from '../components/Icon';
 import { VaultButton } from '../components/VaultButton';
-import { CardDef, FieldPermanent, FieldUnit, EssenceCost, Faction } from '../types/card';
+import { CardDef, FieldPermanent, FieldUnit, EssenceCost, Faction, StackItem } from '../types/card';
 import { STEP_LABELS, canPlayType } from '../types/battleFlow';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -408,6 +408,40 @@ function HandCardFlyIn({ children, animate }: { children: React.ReactNode; anima
   );
 }
 
+/** The Stack — spells/triggers waiting to resolve (top resolves first). */
+function StackOverlay({ stack }: { stack: StackItem[] }) {
+  if (!stack.length) return null;
+  return (
+    <View style={styles.stackOverlay} pointerEvents="none">
+      <Text style={styles.stackTitle}>THE STACK</Text>
+      <Text style={styles.stackHint}>resolves top-first</Text>
+      <View style={styles.stackList}>
+        {stack.map((s, i) => {
+          const c = tryGetCard(s.cardId);
+          const foe = s.controller === 'enemy';
+          return (
+            <View
+              key={s.id}
+              style={[
+                styles.stackItem,
+                foe ? styles.stackItemFoe : styles.stackItemMine,
+                { marginTop: i === 0 ? 0 : -10, zIndex: 20 - i },
+              ]}
+            >
+              <Text style={[styles.stackWho, { color: foe ? '#E8A090' : palette.goldBright }]}>
+                {foe ? 'ENEMY' : 'YOU'}
+              </Text>
+              <Text style={styles.stackName} numberOfLines={1}>
+                {c?.name ?? s.label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export function BattleScreen() {
   const nav = useNavigation();
   const insets = useSafeAreaInsets();
@@ -442,12 +476,17 @@ export function BattleScreen() {
   const [clashFx, setClashFx] = useState(false);
   const [ghosts, setGhosts] = useState<{ key: string; cardId: string; foe: boolean }[]>([]);
   const [discardFx, setDiscardFx] = useState<{ key: string; cardId: string } | null>(null);
+  const [turnBanner, setTurnBanner] = useState<{ key: number; text: string; foe: boolean } | null>(null);
+  const [castFx, setCastFx] = useState<{ key: number; name: string } | null>(null);
+  const castAnim = useRef(new Animated.Value(0)).current;
   const unitSnap = useRef<Record<string, { cardId: string; foe: boolean }>>({});
   const resolvingRef = useRef(false);
   const combatPulse = useRef(new Animated.Value(0)).current;
   const clashFlash = useRef(new Animated.Value(0)).current;
+  const turnBannerAnim = useRef(new Animated.Value(0)).current;
   const seenHand = useRef<Set<string>>(new Set());
   const prevDiscardLen = useRef(0);
+  const prevTurnKey = useRef<string | null>(null);
   const discardFly = useRef(new Animated.Value(0)).current;
   const scenarioFoeName = useGameStore((s) => s.scenarioFoeName);
 
@@ -536,6 +575,28 @@ export function BattleScreen() {
     return () => clearTimeout(t);
   }, [battle?.players.player.hand]);
 
+  // Turn-change banner — a quick "Your Turn / Enemy Turn" sweep on hand-off.
+  useEffect(() => {
+    if (!battle || battle.winner) return;
+    const key = `${battle.turn}-${battle.active}`;
+    if (prevTurnKey.current === null) {
+      prevTurnKey.current = key;
+      return;
+    }
+    if (prevTurnKey.current !== key) {
+      prevTurnKey.current = key;
+      const foe = battle.active === 'enemy';
+      setTurnBanner({ key: battle.turn * 2 + (foe ? 1 : 0), text: foe ? 'Enemy Turn' : 'Your Turn', foe });
+      turnBannerAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(turnBannerAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.delay(720),
+        Animated.timing(turnBannerAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
+      ]).start(() => setTurnBanner(null));
+    }
+  }, [battle?.turn, battle?.active, battle?.winner, turnBannerAnim]);
+
+
   const over = !!battle && (battle.phase === 'gameover' || !!battle.winner);
   const myTurn = !!battle && battle.active === 'player' && !over;
   const canAct = !!battle && battle.priority === 'player' && !over && !enemyBusy;
@@ -545,7 +606,7 @@ export function BattleScreen() {
   const hint = useMemo(() => {
     if (!battle) return '';
     if (over) return battle.winner === 'player' ? `Victory · +${lastGoldGain} gold` : 'Defeat';
-    if (enemyBusy) return 'Enemy turn — watch the phase track…';
+    if (enemyBusy) return battle.log[0]?.text ?? 'Enemy is acting…';
     if (battle.pendingTarget) {
       const mode = battle.pendingTarget.mode;
       if (mode === 'ownUnit') return 'Tap one of YOUR Units to aim the spell';
@@ -578,6 +639,21 @@ export function BattleScreen() {
 
   const selectHandCard = (idx: number) => {
     if (battle.priority === 'player') selectHand(idx);
+  };
+
+  // Play a card; flash a cast ripple for spells so instants/sorceries land with weight.
+  const doPlay = (idx: number) => {
+    const card = tryGetCard(me.hand[idx]);
+    if (card && (card.type === 'Sigil' || card.type === 'Canticle')) {
+      setCastFx({ key: idx + me.hand.length * 1000, name: card.name });
+      castAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(castAnim, { toValue: 1, duration: 170, useNativeDriver: true }),
+        Animated.delay(340),
+        Animated.timing(castAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
+      ]).start(() => setCastFx(null));
+    }
+    playCard(idx);
   };
 
   const inspect = (card: CardDef | null, handIdx: number | null = null) => {
@@ -965,12 +1041,63 @@ export function BattleScreen() {
           </Animated.View>
         )}
 
-        {/* Response window: player may cast an instant Sigil before priority returns */}
+        {/* The Stack — waiting spells/triggers (enemy casts sit here until you pass) */}
+        <StackOverlay stack={battle.stack} />
+
+        {/* Cast ripple for spells */}
+        {castFx && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.castFx,
+              {
+                opacity: castAnim,
+                transform: [
+                  { scale: castAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.castRing}>
+              <Icon name="dust" size={20} color={palette.goldBright} />
+            </View>
+            <Text style={styles.castName} numberOfLines={1}>
+              {castFx.name}
+            </Text>
+          </Animated.View>
+        )}
+
+        {/* Turn hand-off sweep */}
+        {turnBanner && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.turnSweep,
+              {
+                opacity: turnBannerAnim,
+                transform: [
+                  { scale: turnBannerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
+                ],
+              },
+            ]}
+          >
+            <Text style={[styles.turnSweepText, turnBanner.foe && { color: '#F0B4A8' }]}>
+              {turnBanner.text}
+            </Text>
+          </Animated.View>
+        )}
+
+        {/* Response window: player may cast an instant Sigil before the stack resolves */}
         {battle.responseWindow && !battle.pendingTarget && (
           <View style={styles.responseBanner}>
-            <Text style={styles.responseBannerText}>Priority — cast a Sigil or Pass</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.responseBannerText}>
+                {battle.stack.length ? 'Respond to the Stack' : 'Priority'}
+              </Text>
+              <Text style={styles.responseBannerSub}>Cast a Sigil (instant) or pass to resolve.</Text>
+            </View>
             <Pressable onPress={() => passResponse()} style={styles.responsePassBtn}>
-              <Text style={styles.responsePassText}>Pass Priority</Text>
+              <Text style={styles.responsePassText}>Pass</Text>
             </Pressable>
           </View>
         )}
@@ -1016,7 +1143,7 @@ export function BattleScreen() {
             <Pressable
               onPress={() => {
                 if (battle.selectedHandIndex == null || !canAct || battle.pendingTarget) return;
-                playCard(battle.selectedHandIndex);
+                doPlay(battle.selectedHandIndex);
               }}
               style={[
                 styles.dockBtnPlay,
@@ -1253,7 +1380,12 @@ export function BattleScreen() {
         }
         onPrimary={
           zoomHandIndex != null && zoomHandCard && battle.priority === 'player'
-            ? () => playCard(zoomHandIndex)
+            ? () => {
+                const idx = zoomHandIndex;
+                setZoomCard(null);
+                setZoomHandIndex(null);
+                doPlay(idx);
+              }
             : undefined
         }
       />
@@ -1834,14 +1966,102 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  responseBannerText: { color: '#A8D4F5', fontFamily: fonts.bodySemi, fontSize: 12.5, flex: 1 },
+  responseBannerText: { color: '#A8D4F5', fontFamily: fonts.bodySemi, fontSize: 13 },
+  responseBannerSub: { color: '#7FA8C8', fontFamily: fonts.bodyMedium, fontSize: 10.5, marginTop: 1 },
   responsePassBtn: {
     backgroundColor: '#3B8FD9',
     borderRadius: radii.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  responsePassText: { color: '#0A1420', fontFamily: fonts.bodyBold, fontSize: 11 },
+  responsePassText: { color: '#0A1420', fontFamily: fonts.bodyBold, fontSize: 12 },
+
+  // ── The Stack ──
+  stackOverlay: {
+    position: 'absolute',
+    top: '32%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 60,
+  },
+  stackTitle: {
+    color: palette.goldBright,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    letterSpacing: 2,
+  },
+  stackHint: { ...type.caption, fontSize: 10, fontStyle: 'italic', marginBottom: 8 },
+  stackList: { alignItems: 'center' },
+  stackItem: {
+    minWidth: 168,
+    maxWidth: 240,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    ...shadows.deep,
+  },
+  stackItemMine: {
+    backgroundColor: 'rgba(26,22,12,0.97)',
+    borderColor: 'rgba(212,168,75,0.7)',
+  },
+  stackItemFoe: {
+    backgroundColor: 'rgba(28,14,14,0.97)',
+    borderColor: 'rgba(196,69,54,0.7)',
+  },
+  stackWho: { fontFamily: fonts.bodyBold, fontSize: 8.5, letterSpacing: 1 },
+  stackName: { color: palette.text, fontFamily: fonts.display, fontSize: 13, marginTop: 2 },
+
+  // ── Cast ripple ──
+  castFx: {
+    position: 'absolute',
+    top: '38%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 58,
+  },
+  castRing: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 2,
+    borderColor: 'rgba(240,199,94,0.85)',
+    backgroundColor: 'rgba(26,22,12,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.goldGlow,
+  },
+  castName: {
+    color: palette.goldBright,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    letterSpacing: 0.5,
+    marginTop: 8,
+    textShadowColor: '#000',
+    textShadowRadius: 8,
+  },
+
+  // ── Turn hand-off sweep ──
+  turnSweep: {
+    position: 'absolute',
+    top: '40%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 55,
+  },
+  turnSweepText: {
+    color: palette.goldBright,
+    fontFamily: fonts.displayBlack,
+    fontSize: 30,
+    letterSpacing: 3,
+    textShadowColor: '#000',
+    textShadowRadius: 12,
+  },
+
 
   tutorialOverlay: {
     position: 'relative',
