@@ -614,13 +614,17 @@ export function BattleScreen() {
       return 'Choose a target for the spell';
     }
     if (defending) {
-      return 'Block: tap attacker, then YOUR Unit (tap again to clear) — or Confirm';
+      return 'Enemy attacks! Tap an attacker, then YOUR Unit to block — or Confirm.';
     }
     if (!myTurn && !canAct) return 'Enemy turn…';
-    if (battle.phase === 'main1') return 'Tap a Domain for Essence, then play a card';
-    if (battle.phase === 'combat_attackers') return 'Tap Units to attack, then Confirm';
-    if (battle.phase === 'combat_blockers') return 'Confirm to resolve combat damage';
-    if (battle.phase === 'main2') return 'Play more, then End Turn';
+    if (battle.phase === 'main1') return 'Tap a Domain token for Essence, then tap a card to play.';
+    if (battle.phase === 'combat_attackers')
+      return 'Tap YOUR Units to attack — the enemy will block. Then Confirm.';
+    if (battle.phase === 'combat_blockers')
+      return (battle.combat?.attackers.length ?? 0) > 0
+        ? 'Enemy blockers set — Resolve Damage to strike.'
+        : 'Resolve Damage to continue.';
+    if (battle.phase === 'main2') return 'Play more cards, then End Turn.';
     return STEP_LABELS?.[battle.phase] ?? '';
   }, [battle, myTurn, over, enemyBusy, canAct, defending, lastGoldGain]);
 

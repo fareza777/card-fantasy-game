@@ -125,6 +125,7 @@ function pushLog(state: BattleState, text: string) {
 /** Rites that require choosing a target before resolving. */
 export function riteNeedsTarget(
   cardId: string,
+  ctx?: { state: BattleState; who: PlayerId },
 ): 'enemyUnit' | 'enemyUnitOrFace' | 'ownUnit' | null {
   const card = tryGetCard(cardId);
   if (card?.rite) {
@@ -141,8 +142,16 @@ export function riteNeedsTarget(
     case 'rv-048':
       return 'enemyUnit';
     case 'rv-049':
-    case 'rv-051':
-      return 'enemyUnitOrFace';
+    case 'rv-051': {
+      // "Deal N to target Unit. Pierce." — must hit a Unit whenever one exists.
+      // Only an empty enemy board lets Pierce carry straight to face (no target
+      // needed), so the card never offers a face option while Units are up.
+      if (ctx) {
+        const foe = ctx.state.players[opponent(ctx.who)];
+        return foe.units.some((u) => !hasWard(u)) ? 'enemyUnit' : null;
+      }
+      return 'enemyUnit';
+    }
     default:
       return null;
   }
@@ -646,7 +655,7 @@ export function playHandCard(
 
   // Player must aim targeted spells; AI auto-picks
   if (isSpellType(card.type)) {
-    const mode = riteNeedsTarget(cardId);
+    const mode = riteNeedsTarget(cardId, { state: next, who });
     if (mode) {
       let aim = target ?? null;
       if (!aim && who === 'enemy') aim = autoPickTarget(next, who, mode);
@@ -1607,7 +1616,7 @@ export function playerCanRespond(state: BattleState): boolean {
     if (!canPlayType(c.type, state.phase, { flash })) continue;
     if (!canPay(pool, effectiveCost(id, p))) continue;
     if (isSpellType(c.type)) {
-      const mode = riteNeedsTarget(id);
+      const mode = riteNeedsTarget(id, { state, who: 'player' });
       if (mode === 'enemyUnit' && !firstLegalEnemyUnit(state.players.enemy)) continue;
       if (mode === 'ownUnit' && !p.units.length) continue;
     }

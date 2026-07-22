@@ -228,13 +228,13 @@ async function runEnemyTurnStepped(
 
     // Visual beat: Ready → Draw → Main 1 (beginTurn already applied these)
     applyMatchResult(get, set, { ...base, phase: 'untap', priority: 'enemy' });
-    await sleep(280);
+    await sleep(520);
     if (!alive()) return;
     applyMatchResult(get, set, { ...get().battle!, phase: 'draw', priority: 'enemy' });
-    await sleep(320);
+    await sleep(620);
     if (!alive()) return;
     applyMatchResult(get, set, { ...get().battle!, phase: 'main1', priority: 'enemy' });
-    await sleep(260);
+    await sleep(520);
     if (!alive()) return;
 
     for (let i = 0; i < 12; i++) {
@@ -243,7 +243,8 @@ async function runEnemyTurnStepped(
       const played = enemyPlayOnce({ ...cur, phase: 'main1', priority: 'enemy', responseWindow: false });
       if (!played) break;
       applyMatchResult(get, set, played);
-      await sleep(320);
+      // Deliberate beat so the player can read each enemy play in the hint line.
+      await sleep(850);
       if (!alive()) return;
 
       // Priority window: player may cast instant Rites if they left Essence open
@@ -269,7 +270,8 @@ async function runEnemyTurnStepped(
     if (!alive()) return;
     const afterMain = enemyDeclareAttackers(get().battle!);
     applyMatchResult(get, set, afterMain);
-    await sleep(360);
+    // Hold on declared attackers so the player sees who is swinging before blocking.
+    await sleep(800);
     if (!alive()) return;
 
     // Wait for player to declare blockers (MTG)
@@ -321,7 +323,7 @@ async function finishEnemyMain2Stepped(
         ...cur.log,
       ],
     });
-    await sleep(240);
+    await sleep(450);
   } else {
     applyMatchResult(get, set, {
       ...cur,
@@ -330,7 +332,7 @@ async function finishEnemyMain2Stepped(
         ...cur.log,
       ],
     });
-    await sleep(220);
+    await sleep(420);
   }
 
   for (let i = 0; i < 6; i++) {
@@ -339,7 +341,7 @@ async function finishEnemyMain2Stepped(
     const played = enemyPlayOnce({ ...cur, phase: 'main2', priority: 'enemy' });
     if (!played) break;
     applyMatchResult(get, set, played);
-    await sleep(380);
+    await sleep(850);
     if (!alive()) return;
   }
 
