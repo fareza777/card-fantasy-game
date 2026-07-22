@@ -22,9 +22,9 @@ import { useGameStore } from '../store/gameStore';
 import { palette, factionColors } from '../theme/colors';
 import { fonts, type } from '../theme/typography';
 import { radii, shadows } from '../theme/tokens';
-import { Icon } from '../components/Icon';
+import { Icon, IconName } from '../components/Icon';
 import { VaultButton } from '../components/VaultButton';
-import { CardDef, FieldPermanent, FieldUnit, EssenceCost } from '../types/card';
+import { CardDef, FieldPermanent, FieldUnit, EssenceCost, Faction } from '../types/card';
 import { STEP_LABELS, canPlayType } from '../types/battleFlow';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -212,41 +212,121 @@ function StatPill({
   );
 }
 
-function DomainChip({
-  d,
+const FACTION_TOKEN_ICON: Record<Faction, IconName> = {
+  Dawn: 'dawn',
+  Tide: 'tide',
+  Shade: 'shade',
+  Ember: 'ember',
+  Thorn: 'thorn',
+  Neutral: 'neutral',
+};
+
+/** Compact land-style token: faction symbol, glows when ready, dims when tapped. */
+function DomainToken({
+  faction,
+  exhausted,
   canTap,
-  onTap,
-  onInspect,
-  width = DOMAIN_W,
+  onPress,
+  onLongPress,
 }: {
-  d: FieldPermanent;
+  faction: Faction;
+  exhausted: boolean;
   canTap: boolean;
-  onTap: () => void;
-  onInspect: () => void;
-  width?: number;
+  onPress: () => void;
+  onLongPress: () => void;
 }) {
-  const c = tryGetCard(d.cardId);
-  if (!c) return null;
-  const col = factionColors[c.faction] ?? factionColors.Neutral;
+  const col = factionColors[faction] ?? factionColors.Neutral;
   return (
-    <View
-      style={[
-        styles.domainTile,
-        { borderColor: canTap ? col.main : col.main + '66', borderWidth: canTap ? 3 : 2 },
-        d.exhausted && styles.exhausted,
-        canTap && styles.domainTileHot,
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={260}
+      style={({ pressed }) => [
+        styles.token,
+        {
+          borderColor: exhausted ? col.deep : col.main,
+          backgroundColor: (exhausted ? col.deep : col.main) + (exhausted ? '18' : '2E'),
+        },
+        canTap && styles.tokenReady,
+        pressed && canTap && { transform: [{ scale: 0.9 }] },
       ]}
     >
-      <CardView
-        card={c}
-        width={width}
-        board
-        exerted={!!d.exhausted}
-        onPress={() => {
-          if (canTap) onTap();
-        }}
-        onLongPress={onInspect}
-      />
+      <Icon name={FACTION_TOKEN_ICON[faction]} size={15} color={exhausted ? '#5A6070' : col.main} />
+    </Pressable>
+  );
+}
+
+/**
+ * MTG-style resource row: essence pool + tappable Domain tokens + any
+ * Bonds/Relics. Domains are symbols (not full cards) so the board stays
+ * readable no matter how many you have.
+ */
+function ResourceStrip({
+  essence,
+  domains,
+  perms,
+  foe,
+  canAct,
+  onTapDomain,
+  onInspect,
+  onPermPress,
+  permW,
+}: {
+  essence: EssenceCost;
+  domains: FieldPermanent[];
+  perms: FieldPermanent[];
+  foe?: boolean;
+  canAct?: boolean;
+  onTapDomain: (id: string) => void;
+  onInspect: (cardId: string) => void;
+  onPermPress?: (p: FieldPermanent) => void;
+  permW: number;
+}) {
+  const ready = domains.filter((d) => !d.exhausted).length;
+  return (
+    <View style={[styles.resStrip, foe && styles.resStripFoe]}>
+      <View style={styles.resPool}>
+        <Text style={[styles.resLabel, foe && styles.resLabelFoe]}>{foe ? 'FOE' : 'YOU'}</Text>
+        <EssenceBar essence={essence} />
+      </View>
+      <View style={styles.resDivider} />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.resScroll}
+      >
+        {domains.map((d) => {
+          const c = tryGetCard(d.cardId);
+          const canTap = !!canAct && !foe && !d.exhausted;
+          return (
+            <DomainToken
+              key={d.instanceId}
+              faction={c?.faction ?? 'Neutral'}
+              exhausted={!!d.exhausted}
+              canTap={canTap}
+              onPress={() => canTap && onTapDomain(d.instanceId)}
+              onLongPress={() => onInspect(d.cardId)}
+            />
+          );
+        })}
+        {domains.length > 0 && (
+          <Text style={styles.resReady}>
+            {ready}/{domains.length}
+          </Text>
+        )}
+        {perms.map((p) => (
+          <PermCard
+            key={p.instanceId}
+            p={p}
+            width={permW}
+            onPress={onPermPress ? () => onPermPress(p) : undefined}
+            onInspect={() => onInspect(p.cardId)}
+          />
+        ))}
+        {domains.length === 0 && perms.length === 0 && (
+          <Text style={styles.resEmpty}>{foe ? 'no domains' : 'play a Domain'}</Text>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -637,23 +717,20 @@ export function BattleScreen() {
   const combatGlow = combatPulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
 
   // Size the battlefield to the space actually available so nothing clips.
-  // Each half stacks a unit row (cardW·ratio) + a domain row (domainW·ratio),
-  // plus the essence label and paddings. Solve for cardW that fits two halves.
-  const { boardW, domainW } = useMemo(() => {
+  // Domains are now compact tokens in a fixed-height strip, so the two unit
+  // rows get almost all the vertical space. Solve unit width to fit both rows.
+  const { boardW, permW } = useMemo(() => {
     const BOARD_RATIO = 88 / 63;
-    const DOMAIN_SCALE = 0.72;
-    // Fixed chrome inside the arena per half: essence label + row paddings.
-    const halfChrome = 44;
+    const stripH = 56; // resource strip (essence + domain tokens) per side
     const dividerH = 26;
     // Fallback estimate for the first paint (before onLayout): screen minus chrome.
-    const estimate = Math.max(220, SCREEN_H * 0.44);
-    const usable = Math.max(0, (arenaH || estimate) - dividerH);
-    const perHalf = usable / 2 - halfChrome;
-    // perHalf ≈ cardW·ratio·(1 + DOMAIN_SCALE)
-    const raw = perHalf / (BOARD_RATIO * (1 + DOMAIN_SCALE));
-    const byWidth = Math.round(SCREEN_W * 0.2);
-    const w = Math.max(52, Math.min(96, byWidth, Math.floor(raw)));
-    return { boardW: w, domainW: Math.round(w * DOMAIN_SCALE) };
+    const estimate = Math.max(240, SCREEN_H * 0.46);
+    const usable = Math.max(0, (arenaH || estimate) - dividerH - stripH * 2);
+    const perRow = usable / 2; // one unit row per side
+    const raw = perRow / BOARD_RATIO;
+    const byWidth = Math.round(SCREEN_W * 0.22);
+    const w = Math.max(58, Math.min(108, byWidth, Math.floor(raw)));
+    return { boardW: w, permW: 38 };
   }, [arenaH]);
 
   return (
@@ -750,39 +827,17 @@ export function BattleScreen() {
             if (h && Math.abs(h - arenaH) > 4) setArenaH(h);
           }}
         >
-          {/* Enemy half: permanents then units (top of board) */}
+          {/* Enemy half: resource strip (top), then units */}
           <View style={styles.half}>
-            <View style={styles.permStrip}>
-              <EssenceBar essence={foe.essence} label="Enemy Essence" />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.domainRow}
-                nestedScrollEnabled
-              >
-                {foe.domains.map((d) => (
-                  <DomainChip
-                    key={d.instanceId}
-                    d={d}
-                    width={domainW}
-                    canTap={false}
-                    onTap={() => {}}
-                    onInspect={() => inspect(tryGetCard(d.cardId))}
-                  />
-                ))}
-                {[...foe.bonds, ...foe.relics].map((p) => (
-                  <PermCard
-                    key={p.instanceId}
-                    p={p}
-                    width={domainW}
-                    onInspect={() => inspect(tryGetCard(p.cardId))}
-                  />
-                ))}
-                {!foe.domains.length && !foe.bonds.length && !foe.relics.length && (
-                  <Text style={styles.domainEmpty}>no domains</Text>
-                )}
-              </ScrollView>
-            </View>
+            <ResourceStrip
+              essence={foe.essence}
+              domains={foe.domains}
+              perms={[...foe.bonds, ...foe.relics]}
+              foe
+              onTapDomain={() => {}}
+              onInspect={(id) => inspect(tryGetCard(id))}
+              permW={permW}
+            />
             <View style={styles.halfRow}>
               <StatPill label="Ash" value={`${foe.discard.length}`} onPress={() => setAshwell('enemy')} />
               <ScrollView
@@ -881,43 +936,20 @@ export function BattleScreen() {
                 )}
               </ScrollView>
             </View>
-            <View style={styles.permStrip}>
-              <EssenceBar essence={me.essence} label="Essence" />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.domainRow}
-                nestedScrollEnabled
-              >
-                {me.domains.map((d) => (
-                  <DomainChip
-                    key={d.instanceId}
-                    d={d}
-                    width={domainW}
-                    canTap={canAct && !d.exhausted}
-                    onTap={() => tapDomain(d.instanceId)}
-                    onInspect={() => inspect(tryGetCard(d.cardId))}
-                  />
-                ))}
-                {[...me.bonds, ...me.relics].map((p) => {
-                  const isVault = p.cardId === 'rv-059';
-                  return (
-                    <PermCard
-                      key={p.instanceId}
-                      p={p}
-                      width={domainW}
-                      onPress={() => {
-                        if (isVault && myTurn && !p.exhausted) useGameStore.getState().tapVault(p.instanceId);
-                      }}
-                      onInspect={() => inspect(tryGetCard(p.cardId))}
-                    />
-                  );
-                })}
-                {!me.domains.length && !me.bonds.length && !me.relics.length && (
-                  <Text style={styles.domainEmpty}>play a Domain</Text>
-                )}
-              </ScrollView>
-            </View>
+            <ResourceStrip
+              essence={me.essence}
+              domains={me.domains}
+              perms={[...me.bonds, ...me.relics]}
+              canAct={canAct}
+              onTapDomain={(id) => tapDomain(id)}
+              onInspect={(id) => inspect(tryGetCard(id))}
+              onPermPress={(p) => {
+                if (p.cardId === 'rv-059' && myTurn && !p.exhausted) {
+                  useGameStore.getState().tapVault(p.instanceId);
+                }
+              }}
+              permW={permW}
+            />
           </View>
         </View>
 
@@ -969,14 +1001,9 @@ export function BattleScreen() {
         <View style={styles.dock}>
           <View style={styles.dockLeft}>
             <LifeStat life={me.life} />
-            <View style={{ flexShrink: 1, minWidth: 0 }}>
-              <Text style={styles.youLabel} numberOfLines={1}>
-                You
-              </Text>
-              <Text style={styles.headerSub} numberOfLines={1}>
-                Deck {me.deck.length} · Ash {me.discard.length}
-              </Text>
-            </View>
+            <Text style={styles.dockDeck} numberOfLines={1}>
+              Deck {me.deck.length}
+            </Text>
           </View>
           <View style={styles.dockActions}>
             {secondaryLabel && (
@@ -1262,12 +1289,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     lineHeight: 18,
   },
-  youLabel: {
-    color: palette.text,
-    fontSize: 14,
-    fontFamily: fonts.display,
-    letterSpacing: 0.3,
-  },
   headerSub: { ...type.caption, fontSize: 11, marginTop: 2, color: '#C0C6D0' },
 
   lifeStat: {
@@ -1489,7 +1510,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 4,
-    marginBottom: 4,
   },
   essenceLabel: {
     fontFamily: fonts.bodySemi,
@@ -1553,6 +1573,56 @@ const styles = StyleSheet.create({
     padding: 3,
   },
   exhausted: { opacity: 0.45 },
+
+  // ── Compact resource strip (essence pool + domain tokens) ──
+  resStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(212,168,75,0.22)',
+    backgroundColor: 'rgba(10,13,18,0.62)',
+  },
+  resStripFoe: {
+    borderColor: 'rgba(196,69,54,0.22)',
+    backgroundColor: 'rgba(14,10,12,0.55)',
+  },
+  resPool: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
+  resLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 0.8,
+    color: palette.gold,
+  },
+  resLabelFoe: { color: '#C89088' },
+  resDivider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.10)' },
+  resScroll: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 6 },
+  resReady: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 10,
+    color: '#8A93A3',
+    marginLeft: 2,
+    marginRight: 4,
+  },
+  resEmpty: { ...type.caption, fontSize: 10.5, color: '#8A93A3', fontStyle: 'italic' },
+  token: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tokenReady: {
+    shadowColor: palette.gold,
+    shadowOpacity: 0.7,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
+  },
 
   divider: {
     alignItems: 'center',
@@ -1635,12 +1705,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(212,168,75,0.22)',
   },
-  dockLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, flexBasis: 0 },
+  // flexShrink:0 so the life anchor never collapses under the action buttons
+  // (that collapse is what made "Skip Combat" overlap the life number).
+  dockLeft: { alignItems: 'center', gap: 2, flexShrink: 0 },
+  dockDeck: { ...type.caption, fontSize: 10, color: '#A8B0C0' },
   dockActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flexShrink: 1,
+    flex: 1,
     flexWrap: 'nowrap',
     justifyContent: 'flex-end',
   },
@@ -1648,10 +1721,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: '#3A4252',
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     paddingVertical: 10,
-    minWidth: 76,
+    minWidth: 58,
     minHeight: 44,
+    flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1660,11 +1734,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: 'rgba(212,168,75,0.55)',
-    paddingHorizontal: 11,
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    minWidth: 88,
+    minWidth: 58,
     minHeight: 44,
-    flexGrow: 0,
+    flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1673,10 +1747,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    minWidth: 120,
+    minWidth: 96,
     minHeight: 44,
     flexGrow: 1,
-    maxWidth: 180,
+    flexShrink: 1,
+    maxWidth: 176,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
